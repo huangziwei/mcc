@@ -8,6 +8,7 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
+from mcc.merge import merge_csv
 from mcc.preprocess.ocr import ocr_columns
 from mcc.preprocess.render import render_pages
 from mcc.preprocess.segment import segment_pages
@@ -162,6 +163,37 @@ def build_parser() -> argparse.ArgumentParser:
     )
     proofread_parser.set_defaults(func=cmd_proofread)
 
+    merge_parser = subparsers.add_parser(
+        "merge", help="Merge proofread CSVs into a single dataset"
+    )
+    merge_parser.add_argument(
+        "--csv",
+        dest="csv_dir",
+        default=repo_root / "post" / "csv",
+        type=Path,
+        help="Input CSV directory",
+    )
+    merge_parser.add_argument(
+        "--meta",
+        dest="meta_dir",
+        default=repo_root / "post" / "meta",
+        type=Path,
+        help="Metadata directory",
+    )
+    merge_parser.add_argument(
+        "--out",
+        default=repo_root / "post" / "merged" / "modern-chinese-common-words.csv",
+        type=Path,
+        help="Output merged CSV path",
+    )
+    merge_parser.add_argument(
+        "--stats",
+        choices=["comments", "none"],
+        default="comments",
+        help="Write stats header comments",
+    )
+    merge_parser.set_defaults(func=cmd_merge)
+
     return parser
 
 
@@ -219,6 +251,15 @@ def cmd_proofread(args: argparse.Namespace) -> None:
         repo_root=args.root,
         port=args.port,
         open_browser=not args.no_open,
+    )
+
+
+def cmd_merge(args: argparse.Namespace) -> None:
+    merge_csv(
+        csv_dir=args.csv_dir,
+        meta_dir=args.meta_dir,
+        out_path=args.out,
+        stats_mode=args.stats,
     )
 
 
