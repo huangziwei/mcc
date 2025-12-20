@@ -264,7 +264,39 @@
       return;
     }
     renderColumnSelect();
-    await loadItem(0);
+    const startIndex = await findFirstUnproofreadIndex();
+    await loadItem(startIndex);
+  }
+
+  async function findFirstUnproofreadIndex() {
+    if (!state.metaDir || state.items.length === 0) {
+      return 0;
+    }
+    let metaFiles = [];
+    try {
+      metaFiles = await listFilesServer(state.metaDir, [".json"]);
+    } catch (error) {
+      return 0;
+    }
+    const metaSet = new Set(metaFiles.map((name) => baseName(name)));
+    const missingIndex = state.items.findIndex((item) => !metaSet.has(item.base));
+    if (missingIndex !== -1) {
+      return missingIndex;
+    }
+    setStatus("Scanning for next unproofread...");
+    for (let i = 0; i < state.items.length; i += 1) {
+      const item = state.items[i];
+      if (!item.meta) {
+        item.meta = await readMetadata(item.base);
+      }
+      if (!extractPassNumber(item.meta)) {
+        return i;
+      }
+      if (i === 0 || (i + 1) % 25 === 0 || i + 1 === state.items.length) {
+        setStatus(`Scanning for next unproofread ${i + 1}/${state.items.length}`);
+      }
+    }
+    return 0;
   }
 
   async function readMetadata(base) {
