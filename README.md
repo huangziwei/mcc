@@ -9,7 +9,6 @@ mcc render # extract all pages
 mcc segment # split each page by column
 mcc ocr # ocr each page and save as csv to post/csv
 mcc proofread # launch the proofreading web app
-mcc proofread # NotImplemented/TODO: start the proofreading web app
 ```
 
 ### Source Material

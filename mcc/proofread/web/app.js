@@ -14,6 +14,10 @@
     selectedCol: null,
     meta: null,
     config: null,
+    originalCsvSerialized: "",
+    originalMetaSerialized: "",
+    originalPass: null,
+    sessionStartedAt: "",
   };
 
   const elements = {
@@ -53,6 +57,7 @@
   };
 
   const DEFAULT_COLUMNS = ["index", "word"];
+  const STORAGE_PROOFREAD_BY = "mcc-proofread-by";
 
   async function fetchJson(url, options) {
     const response = await fetch(url, options);
@@ -73,6 +78,26 @@
   function setStatus(message, isError = false) {
     elements.status.textContent = message;
     elements.status.style.color = isError ? "#b42318" : "";
+  }
+
+  function getStoredProofreadBy() {
+    try {
+      return localStorage.getItem(STORAGE_PROOFREAD_BY) || "";
+    } catch (error) {
+      return "";
+    }
+  }
+
+  function setStoredProofreadBy(value) {
+    try {
+      if (value) {
+        localStorage.setItem(STORAGE_PROOFREAD_BY, value);
+      } else {
+        localStorage.removeItem(STORAGE_PROOFREAD_BY);
+      }
+    } catch (error) {
+      // Ignore storage failures (private mode, quota, etc).
+    }
   }
 
   function toLocalInputValue(date) {
@@ -298,10 +323,13 @@
     const meta = item.meta || (await readMetadata(item.base)) || {};
     item.meta = meta;
     state.meta = meta;
+    state.originalCsvSerialized = serializeCsv(state.tableData);
+    state.originalMetaSerialized = JSON.stringify(meta, null, 2);
+    state.originalPass = extractPassNumber(meta);
+    state.sessionStartedAt = nowLocalValue();
     setupColumns(meta.columns);
     renderTable();
     renderMetadata();
-    stampStartedAt();
     await loadImage(item);
     renderColumnSelect();
     updateProgress();
@@ -533,38 +561,71 @@
       return false;
     }
     const item = state.items[state.currentIndex];
-    stampCompletedAt();
-    const csvText = serializeCsv(state.tableData);
-    const metadata = buildMetadata(item);
+    const currentCsvSerialized = serializeCsv(state.tableData);
+    const csvChanged = currentCsvSerialized !== state.originalCsvSerialized;
+    const passInput = parsePassInput();
+    let pass = passInput;
+    if (csvChanged && !pass) {
+      const base = state.originalPass || 0;
+      pass = base + 1;
+      elements.metaLevel.value = String(pass);
+    }
+    const startedAt = csvChanged
+      ? state.sessionStartedAt || nowLocalValue()
+      : state.meta?.proofread_started_at || null;
+    const completedAt = csvChanged
+      ? nowLocalValue()
+      : state.meta?.proofread_completed_at || null;
+    const metadata = buildMetadata(item, { pass, startedAt, completedAt });
+    const metadataSerialized = JSON.stringify(metadata, null, 2);
+    const metadataChanged = metadataSerialized !== state.originalMetaSerialized;
+    if (!csvChanged && !metadataChanged) {
+      setStatus(`No changes to save for ${item.base}`);
+      return true;
+    }
     if (!state.csvDir || !state.metaDir) {
       setStatus("Server paths are not configured.", true);
       return false;
     }
     try {
-      await writeServer(
-        `${state.csvDir}/${item.base}.csv`,
-        csvText,
-        "text/csv; charset=utf-8"
-      );
-      await writeServer(
-        `${state.metaDir}/${item.base}.json`,
-        JSON.stringify(metadata, null, 2),
-        "application/json"
-      );
+      if (csvChanged) {
+        await writeServer(
+          `${state.csvDir}/${item.base}.csv`,
+          currentCsvSerialized,
+          "text/csv; charset=utf-8"
+        );
+      }
+      if (metadataChanged) {
+        await writeServer(
+          `${state.metaDir}/${item.base}.json`,
+          metadataSerialized,
+          "application/json"
+        );
+      }
     } catch (error) {
       setStatus("Failed to save via server.", true);
       return false;
     }
     item.meta = metadata;
     state.meta = metadata;
+    state.originalCsvSerialized = currentCsvSerialized;
+    state.originalMetaSerialized = metadataSerialized;
+    state.originalPass = metadata.proofread_pass ?? null;
+    if (csvChanged) {
+      elements.metaStarted.value = startedAt || "";
+      elements.metaCompleted.value = completedAt || "";
+    }
     renderColumnSelect();
     updateProgress();
     setStatus(`Saved ${item.base}`);
     return true;
   }
 
-  function buildMetadata(item) {
-    const pass = parsePassInput();
+  function buildMetadata(item, overrides = {}) {
+    const pass = overrides.pass ?? parsePassInput();
+    const startedAt = overrides.startedAt ?? state.meta?.proofread_started_at ?? null;
+    const completedAt =
+      overrides.completedAt ?? state.meta?.proofread_completed_at ?? null;
     const imageName = item.imagePath ? item.imagePath.split("/").pop() : null;
     return {
       source_csv: `${item.base}.csv`,
@@ -572,8 +633,8 @@
       proofread_pass: pass,
       proofread_level: pass ? `pass-${pass}` : null,
       proofread_by: elements.metaBy.value || null,
-      proofread_started_at: elements.metaStarted.value || null,
-      proofread_completed_at: elements.metaCompleted.value || null,
+      proofread_started_at: startedAt || null,
+      proofread_completed_at: completedAt || null,
       notes: elements.metaNotes.value || null,
       columns: state.columnNames.slice(0),
     };
@@ -582,27 +643,12 @@
   function renderMetadata() {
     const meta = state.meta || {};
     elements.metaLevel.value = normalizePassValue(meta);
-    elements.metaBy.value = meta.proofread_by || "";
+    elements.metaBy.value = meta.proofread_by || getStoredProofreadBy();
     elements.metaStarted.value = meta.proofread_started_at || "";
     elements.metaCompleted.value = meta.proofread_completed_at || "";
     elements.metaNotes.value = meta.notes || "";
   }
 
-  function stampStartedAt() {
-    const value = nowLocalValue();
-    elements.metaStarted.value = value;
-    if (state.meta) {
-      state.meta.proofread_started_at = value;
-    }
-  }
-
-  function stampCompletedAt() {
-    const value = nowLocalValue();
-    elements.metaCompleted.value = value;
-    if (state.meta) {
-      state.meta.proofread_completed_at = value;
-    }
-  }
 
   async function loadImage(item) {
     if (!item.imagePath) {
@@ -738,6 +784,9 @@
     window.addEventListener("pointermove", onPointerMove);
     window.addEventListener("pointerup", onPointerUp);
     elements.image.addEventListener("load", fitToWidth);
+    elements.metaBy.addEventListener("input", () => {
+      setStoredProofreadBy(elements.metaBy.value.trim());
+    });
   }
 
   async function init() {
