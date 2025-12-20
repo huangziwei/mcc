@@ -1,0 +1,32 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "mcc"
+version = "0.1.0"
+description = "Modern Chinese Common Words"
+authors = []
+requires-python = ">=3.13.0"
+dependencies = [
+    "pillow",
+    "pymupdf",
+    "requests",
+    "rich",
+    "pytest",
+]
+readme = {file = "README.md", content-type = "text/markdown"}
+
+[project.scripts]
+mcc = "mcc.cli:main"
+
+[tool.setuptools]
+packages = {find = {}}
+include-package-data = true
+
+[tool.hatch.build.targets.wheel]
+packages = ["mcc"]
+
+[tool.uv]
+package = true
+

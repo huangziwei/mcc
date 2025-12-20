@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>MCC Proofread</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header class="toolbar panel">
+    <div class="group">
+      <span id="paths-hint" class="hint">Paths: post/csv, post/meta, pre/columns</span>
+    </div>
+    <div class="group">
+      <label for="column-select">Column</label>
+      <select id="column-select"></select>
+      <button id="prev-btn" type="button">Prev</button>
+      <button id="next-btn" type="button">Next</button>
+      <span id="progress" class="hint"></span>
+    </div>
+    <div class="group">
+      <button id="save-btn" class="primary" type="button">Save</button>
+      <span id="status" class="status"></span>
+    </div>
+  </header>
+
+  <main class="layout">
+    <section class="table-pane panel">
+      <div class="pane-header">
+        <h2>CSV Editor</h2>
+        <div class="controls">
+          <button id="add-row" type="button">Add Row</button>
+          <button id="remove-row" type="button">Remove Row</button>
+          <button id="add-col" type="button">Add Column</button>
+          <button id="remove-col" type="button">Remove Column</button>
+        </div>
+      </div>
+      <div id="table-container" class="table-container"></div>
+    </section>
+
+    <section class="image-pane panel">
+      <div class="pane-header">
+        <h2>Column Image</h2>
+        <div class="controls">
+          <button id="zoom-out" type="button">-</button>
+          <button id="zoom-in" type="button">+</button>
+          <button id="fit-width" type="button">Fit Width</button>
+          <button id="fit-height" type="button">Fit Height</button>
+        </div>
+      </div>
+      <div id="image-frame" class="image-frame">
+        <img id="column-image" alt="" />
+        <div id="image-empty" class="image-empty">No image loaded</div>
+      </div>
+    </section>
+  </main>
+
+  <section class="meta-pane panel">
+    <div class="meta-field">
+      <label for="proofread-level">Proofread Pass</label>
+      <input id="proofread-level" type="number" min="1" step="1" placeholder="1" />
+    </div>
+    <div class="meta-field">
+      <label for="proofread-by">Proofread By</label>
+      <input id="proofread-by" type="text" placeholder="name" />
+    </div>
+    <div class="meta-field">
+      <label for="proofread-started">Started</label>
+      <input id="proofread-started" type="datetime-local" readonly />
+    </div>
+    <div class="meta-field">
+      <label for="proofread-completed">Completed</label>
+      <input id="proofread-completed" type="datetime-local" readonly />
+    </div>
+    <div class="meta-field span-two">
+      <label for="proofread-notes">Notes</label>
+      <textarea id="proofread-notes" rows="2" placeholder="notes"></textarea>
+    </div>
+  </section>
+
+  <footer class="footer hint">
+    Use the buttons above to select the post folder and the columns folder.
+  </footer>
+
+  <script src="app.js"></script>
+</body>
+</html>

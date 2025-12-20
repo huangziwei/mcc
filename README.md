@@ -1,0 +1,17 @@
+# 现代汉语常用词表（第 2 版, 2021） / Modern Chinese Common Words (2nd ed., 2021) 
+
+### Usage
+
+```bash
+uv sync
+
+mcc render # extract all pages
+mcc segment # split each page by column
+mcc ocr # ocr each page and save as csv to post/csv
+mcc proofread # launch the proofreading web app
+mcc proofread # NotImplemented/TODO: start the proofreading web app
+```
+
+### Source Material
+
+- 李行健、苏新春（主编）. 《现代汉语常用词表（第2版）》. 北京：商务印书馆, 2021. ISBN 978-7-100-20011-0.

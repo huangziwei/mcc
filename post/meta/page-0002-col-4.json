@@ -1,0 +1,13 @@
+{
+  "source_csv": "page-0002-col-4.csv",
+  "source_image": "page-0002-col-4.png",
+  "proofread_level": null,
+  "proofread_by": null,
+  "proofread_started_at": "2025-12-20T15:25",
+  "proofread_completed_at": null,
+  "notes": null,
+  "columns": [
+    "index",
+    "word"
+  ]
+}
