@@ -95,16 +95,20 @@ def normalize_value(value: Any) -> str:
     return str(value)
 
 
-def build_stats(items: list[MergeItem]) -> dict[str, Any]:
+def build_stats(
+    items: list[MergeItem],
+    row_ranges_by_pass: dict[str, list[int | list[int]]],
+    unproofread_ranges: list[int | list[int]],
+) -> dict[str, Any]:
     row_total = 0
     row_proofread = 0
     row_unproofread = 0
-    row_passes: dict[int, int] = {}
+    row_passes: dict[str, int] = {}
 
     col_total = len(items)
     col_proofread = 0
     col_unproofread = 0
-    col_passes: dict[int, int] = {}
+    col_passes: dict[str, int] = {}
 
     for item in items:
         row_count = len(item.rows)
@@ -112,9 +116,10 @@ def build_stats(items: list[MergeItem]) -> dict[str, Any]:
         pass_num = extract_pass(item.meta)
         if pass_num:
             row_proofread += row_count
-            row_passes[pass_num] = row_passes.get(pass_num, 0) + row_count
+            pass_key = str(pass_num)
+            row_passes[pass_key] = row_passes.get(pass_key, 0) + row_count
             col_proofread += 1
-            col_passes[pass_num] = col_passes.get(pass_num, 0) + 1
+            col_passes[pass_key] = col_passes.get(pass_key, 0) + 1
         else:
             row_unproofread += row_count
             col_unproofread += 1
@@ -125,6 +130,8 @@ def build_stats(items: list[MergeItem]) -> dict[str, Any]:
             "proofread": row_proofread,
             "unproofread": row_unproofread,
             "passes": row_passes,
+            "ranges_by_pass": row_ranges_by_pass,
+            "unproofread_ranges": unproofread_ranges,
         },
         "columns": {
             "total": col_total,
@@ -173,24 +180,52 @@ def merge_csv(
             )
         )
 
-    stats = build_stats(merge_items)
     out_path.parent.mkdir(parents=True, exist_ok=True)
+    header = master_columns
 
-    meta_columns = [
-        "page",
-        "col",
-        "row_in_col",
-        "source_csv",
-        "source_image",
-        "proofread_pass",
-        "proofread_level",
-        "proofread_by",
-        "proofread_started_at",
-        "proofread_completed_at",
-        "proofread_status",
-        "notes",
-    ]
-    header = master_columns + meta_columns
+    def append_range(target: list[int | list[int]], start: int, end: int) -> None:
+        if start > end:
+            return
+        if start == end:
+            target.append(start)
+        else:
+            target.append([start, end])
+
+    row_ranges_by_pass: dict[str, list[int | list[int]]] = {}
+    unproofread_ranges: list[int | list[int]] = []
+    current_pass: int | None = None
+    current_start: int | None = None
+    row_cursor = 1
+    for item in merge_items:
+        row_count = len(item.rows)
+        if row_count == 0:
+            continue
+        pass_num = extract_pass(item.meta)
+        if current_start is None:
+            current_start = row_cursor
+            current_pass = pass_num
+        elif pass_num != current_pass:
+            end = row_cursor - 1
+            if current_pass is None:
+                append_range(unproofread_ranges, current_start, end)
+            else:
+                pass_key = str(current_pass)
+                row_ranges_by_pass.setdefault(pass_key, [])
+                append_range(row_ranges_by_pass[pass_key], current_start, end)
+            current_start = row_cursor
+            current_pass = pass_num
+        row_cursor += row_count
+
+    if current_start is not None:
+        end = row_cursor - 1
+        if current_pass is None:
+            append_range(unproofread_ranges, current_start, end)
+        else:
+            pass_key = str(current_pass)
+            row_ranges_by_pass.setdefault(pass_key, [])
+            append_range(row_ranges_by_pass[pass_key], current_start, end)
+
+    stats = build_stats(merge_items, row_ranges_by_pass, unproofread_ranges)
 
     with out_path.open("w", newline="", encoding="utf-8") as csv_file:
         if stats_mode == "comments":
@@ -199,33 +234,13 @@ def merge_csv(
         writer = csv.writer(csv_file)
         writer.writerow(header)
         for item in merge_items:
-            meta = item.meta or {}
-            pass_num = extract_pass(meta)
-            level = normalize_value(meta.get("proofread_level"))
-            if not level and pass_num:
-                level = f"pass-{pass_num}"
-            status = level or "unproofread"
-            for row_idx, row in enumerate(item.rows, start=1):
+            for row in item.rows:
                 row_map = {
                     item.columns[col_idx]: normalize_value(row[col_idx])
                     for col_idx in range(len(item.columns))
                     if col_idx < len(row)
                 }
                 data_values = [row_map.get(name, "") for name in master_columns]
-                meta_values = [
-                    item.page,
-                    item.col,
-                    row_idx,
-                    normalize_value(meta.get("source_csv") or item.path.name),
-                    normalize_value(meta.get("source_image")),
-                    normalize_value(pass_num),
-                    level,
-                    normalize_value(meta.get("proofread_by")),
-                    normalize_value(meta.get("proofread_started_at")),
-                    normalize_value(meta.get("proofread_completed_at")),
-                    status,
-                    normalize_value(meta.get("notes")),
-                ]
-                writer.writerow(data_values + meta_values)
+                writer.writerow(data_values)
 
     console.log(f"Wrote merged CSV: {out_path}")
