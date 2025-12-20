@@ -436,6 +436,7 @@
     renderTable();
     renderMetadata();
     await loadImage(item);
+    elements.tableContainer.scrollTop = 0;
     renderColumnSelect();
     updateProgress();
     setStatus(`Loaded ${item.base}`);
