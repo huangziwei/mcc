@@ -1,4 +1,6 @@
-# 现代汉语常用词表（第 2 版, 2021） / Modern Chinese Common Words (2nd ed., 2021) 
+# Modern Chinese Common Words / 现代汉语常用词表 (2e, 2021)
+
+WIP.
 
 ### Usage
 

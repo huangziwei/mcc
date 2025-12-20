@@ -32,6 +32,8 @@
     tableContainer: byId("table-container"),
     status: byId("status"),
     progress: byId("progress"),
+    stats: byId("stats"),
+    statsBtn: byId("stats-btn"),
     pathsHint: byId("paths-hint"),
     image: byId("column-image"),
     imageFrame: byId("image-frame"),
@@ -78,6 +80,13 @@
   function setStatus(message, isError = false) {
     elements.status.textContent = message;
     elements.status.style.color = isError ? "#b42318" : "";
+  }
+
+  function setStatsText(message) {
+    if (!elements.stats) {
+      return;
+    }
+    elements.stats.textContent = message;
   }
 
   function getStoredProofreadBy() {
@@ -261,6 +270,7 @@
       setStatus("No CSV files found in post/csv.", true);
       elements.columnSelect.innerHTML = "";
       elements.progress.textContent = "";
+      setStatsText("Stats: no items");
       return;
     }
     renderColumnSelect();
@@ -297,6 +307,69 @@
       }
     }
     return 0;
+  }
+
+  async function computeStats() {
+    if (!state.metaDir || state.items.length === 0) {
+      setStatsText("Stats: no items");
+      return;
+    }
+    const statsBtn = elements.statsBtn;
+    if (statsBtn) {
+      statsBtn.disabled = true;
+    }
+    setStatsText("Stats: loading...");
+    try {
+      let metaFiles = [];
+      try {
+        metaFiles = await listFilesServer(state.metaDir, [".json"]);
+      } catch (error) {
+        setStatsText("Stats: failed to list metadata.");
+        return;
+      }
+      const metaSet = new Set(metaFiles.map((name) => baseName(name)));
+      let proofread = 0;
+      let unproofread = 0;
+      const passCounts = new Map();
+      for (let i = 0; i < state.items.length; i += 1) {
+        const item = state.items[i];
+        if (!metaSet.has(item.base)) {
+          unproofread += 1;
+        } else {
+          let meta = item.meta;
+          if (!meta) {
+            meta = await readMetadata(item.base);
+            item.meta = meta;
+          }
+          const pass = extractPassNumber(meta);
+          if (!pass) {
+            unproofread += 1;
+          } else {
+            proofread += 1;
+            passCounts.set(pass, (passCounts.get(pass) || 0) + 1);
+          }
+        }
+        if (i === 0 || (i + 1) % 25 === 0 || i + 1 === state.items.length) {
+          setStatsText(`Stats: scanning ${i + 1}/${state.items.length}...`);
+        }
+      }
+      const total = state.items.length;
+      const passEntries = Array.from(passCounts.entries()).sort((a, b) => a[0] - b[0]);
+      let statsText = `Stats: ${proofread} proofread, ${unproofread} unproofread (${total} total)`;
+      const maxPass = passEntries.length ? passEntries[passEntries.length - 1][0] : 0;
+      if (maxPass > 1) {
+        const passText = passEntries
+          .map(([pass, count]) => `pass ${pass}: ${count}`)
+          .join(", ");
+        statsText += ` | ${passText}`;
+      }
+      setStatsText(statsText);
+      renderColumnSelect();
+    } finally {
+      if (statsBtn) {
+        statsBtn.disabled = false;
+      }
+    }
   }
 
   async function readMetadata(base) {
@@ -804,6 +877,9 @@
     elements.prevBtn.addEventListener("click", () => navigateTo(state.currentIndex - 1));
     elements.nextBtn.addEventListener("click", () => navigateTo(state.currentIndex + 1));
     elements.saveBtn.addEventListener("click", () => saveCurrent());
+    if (elements.statsBtn) {
+      elements.statsBtn.addEventListener("click", () => computeStats());
+    }
     elements.addRowBtn.addEventListener("click", addRow);
     elements.removeRowBtn.addEventListener("click", removeRow);
     elements.addColBtn.addEventListener("click", addColumn);

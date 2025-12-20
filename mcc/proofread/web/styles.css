@@ -70,6 +70,10 @@ h2 {
   flex-wrap: wrap;
 }
 
+.group-right {
+  margin-left: auto;
+}
+
 button,
 select,
 input,
@@ -258,6 +262,11 @@ button.primary:hover {
 }
 
 .footer {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  flex-wrap: wrap;
   text-align: center;
   padding: 8px 16px 18px 16px;
 }
