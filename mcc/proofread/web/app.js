@@ -542,6 +542,21 @@
           state.selectedCol = colIndex;
           highlightSelection();
         });
+        input.addEventListener("keydown", (event) => {
+          if (event.key !== "Enter") {
+            return;
+          }
+          event.preventDefault();
+          const nextRow = rowIndex + 1;
+          if (nextRow >= state.tableData.length) {
+            return;
+          }
+          const selector = `input[data-row='${nextRow}'][data-col='${colIndex}']`;
+          const nextInput = elements.tableContainer.querySelector(selector);
+          if (nextInput) {
+            nextInput.focus();
+          }
+        });
         td.appendChild(input);
         tr.appendChild(td);
       });
