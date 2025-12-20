@@ -16,7 +16,7 @@ from mcc.proofread.server import run_proofread_server
 
 def build_parser() -> argparse.ArgumentParser:
     repo_root = Path(__file__).resolve().parents[1]
-    default_pdf = repo_root / "raw" / "modern-common-chinese-words.pdf"
+    default_pdf = repo_root / "raw" / "modern-chinese-common-words.pdf"
     default_out = repo_root / "pre" / "pages"
     parser = argparse.ArgumentParser(prog="mcc")
     subparsers = parser.add_subparsers(dest="command", required=True)
