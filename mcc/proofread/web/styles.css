@@ -150,8 +150,9 @@ button.primary:hover {
 }
 
 .bulk-controls {
-  align-items: center;
-  gap: 4px 6px;
+  display: flex;
+  align-items: flex-start;
+  gap: 8px 12px;
   flex-wrap: wrap;
   padding: 0 16px 12px 16px;
 }
@@ -161,20 +162,35 @@ button.primary:hover {
   letter-spacing: 0.12em;
   text-transform: uppercase;
   color: var(--muted);
-  padding-right: 4px;
+  align-self: flex-start;
+  padding-top: 4px;
 }
 
-.bulk-label {
-  font-size: 0.7rem;
-  letter-spacing: 0.06em;
+.bulk-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 130px;
+}
+
+.bulk-field label {
+  font-size: 0.68rem;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--muted);
 }
 
 .bulk-control {
-  width: 120px;
-  min-width: 110px;
+  width: 130px;
+  min-width: 130px;
   height: 36px;
+}
+
+.bulk-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding-top: 16px;
 }
 
 .bulk-apply {
@@ -182,8 +198,8 @@ button.primary:hover {
 }
 
 .bulk-target {
-  white-space: nowrap;
-  flex: 1 1 auto;
+  line-height: 1.2;
+  max-width: 220px;
 }
 
 .table-container {

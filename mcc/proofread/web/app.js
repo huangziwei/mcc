@@ -440,6 +440,7 @@
     state.originalPass = extractPassNumber(meta);
     state.sessionStartedAt = nowLocalValue();
     setupColumns(meta.columns);
+    setDefaultShiftColumn();
     renderTable();
     renderMetadata();
     await loadImage(item);
@@ -625,6 +626,27 @@
       }
     }
     return null;
+  }
+
+  function setDefaultShiftColumn() {
+    if (
+      state.selectedCol !== null &&
+      state.selectedCol >= 0 &&
+      state.selectedCol < state.columnNames.length
+    ) {
+      updateShiftTarget();
+      return;
+    }
+    const indexCol = findColumnIndexByName("index");
+    if (indexCol !== null) {
+      state.selectedCol = indexCol;
+      updateShiftTarget();
+      return;
+    }
+    if (state.columnNames.length > 0) {
+      state.selectedCol = 0;
+      updateShiftTarget();
+    }
   }
 
   function ensureShiftColumn() {
