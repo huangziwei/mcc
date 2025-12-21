@@ -11,6 +11,7 @@ mcc render # extract all pages
 mcc segment # split each page by column
 mcc ocr # ocr each page and save as csv to post/csv
 mcc proofread # launch the proofreading web app
+mcc merge # create or update the complete word list
 ```
 
 ### Source Material
