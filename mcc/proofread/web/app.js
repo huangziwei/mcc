@@ -241,6 +241,18 @@
     }
   }
 
+  async function updateReadmeStats() {
+    if (!state.config || !state.config.readme_stats_path) {
+      return true;
+    }
+    try {
+      await fetchJson("/api/readme-stats", { method: "POST" });
+      return true;
+    } catch (error) {
+      return false;
+    }
+  }
+
   async function refreshItems() {
     await refreshItemsServer();
   }
@@ -979,7 +991,8 @@
     const metadata = buildMetadata(item, { pass, startedAt, completedAt });
     const metadataSerialized = JSON.stringify(metadata, null, 2);
     const metadataChanged = metadataSerialized !== state.originalMetaSerialized;
-    if (!csvChanged && !metadataChanged) {
+    const didSave = csvChanged || metadataChanged;
+    if (!didSave) {
       setStatus(`No changes to save for ${item.base}`);
       return true;
     }
@@ -1017,6 +1030,11 @@
     }
     renderColumnSelect();
     updateProgress();
+    const readmeUpdated = await updateReadmeStats();
+    if (!readmeUpdated) {
+      setStatus(`Saved ${item.base} (README update failed)`, true);
+      return true;
+    }
     setStatus(`Saved ${item.base}`);
     return true;
   }

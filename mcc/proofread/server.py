@@ -1,12 +1,20 @@
 from __future__ import annotations
 
+import io
 import json
+import threading
 import webbrowser
 from functools import partial
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
 from urllib.parse import parse_qs, urlparse
+
+from rich.console import Console
+
+from mcc.stats import collect_stats, update_readme_stats
+
+_README_STATS_LOCK = threading.Lock()
 
 
 class ProofreadRequestHandler(SimpleHTTPRequestHandler):
@@ -47,6 +55,9 @@ class ProofreadRequestHandler(SimpleHTTPRequestHandler):
         parsed = urlparse(self.path)
         if parsed.path == "/api/write":
             self._handle_api_write(parsed)
+            return
+        if parsed.path == "/api/readme-stats":
+            self._handle_api_readme_stats()
             return
         self.send_error(404, "Unknown endpoint")
 
@@ -122,6 +133,59 @@ class ProofreadRequestHandler(SimpleHTTPRequestHandler):
         self.send_response(200)
         self.end_headers()
 
+    def _handle_api_readme_stats(self) -> None:
+        if self._repo_root is None:
+            self.send_error(500, "Server not configured")
+            return
+        config = self._config or {}
+        csv_dir_value = config.get("default_csv_dir") or "post/csv"
+        meta_dir_value = config.get("default_meta_dir") or "post/meta"
+        readme_value = config.get("readme_stats_path") or "README.md"
+
+        csv_dir = self._resolve_path(csv_dir_value, allow_write=False)
+        meta_dir = self._resolve_path(meta_dir_value, allow_write=False)
+        readme_path = self._resolve_repo_path(readme_value)
+        if not csv_dir or not meta_dir or not readme_path:
+            self.send_error(403, "Stats paths not allowed")
+            return
+
+        if not _README_STATS_LOCK.acquire(blocking=False):
+            payload = json.dumps({"status": "busy"}).encode("utf-8")
+            self.send_response(202)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(payload)))
+            self.end_headers()
+            self.wfile.write(payload)
+            return
+
+        quiet_console = Console(file=io.StringIO())
+        try:
+            stats = collect_stats(csv_dir=csv_dir, meta_dir=meta_dir, console=quiet_console)
+            update_readme_stats(readme_path, stats, console=quiet_console)
+        except SystemExit as exc:
+            self.send_error(400, str(exc))
+            return
+        except Exception:
+            self.send_error(500, "Failed to update README stats")
+            return
+        finally:
+            _README_STATS_LOCK.release()
+
+        payload = json.dumps({"status": "ok"}).encode("utf-8")
+        self.send_response(200)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(payload)))
+        self.end_headers()
+        self.wfile.write(payload)
+
+    def _resolve_repo_path(self, raw_path: str) -> Path | None:
+        if self._repo_root is None:
+            return None
+        candidate = (self._repo_root / raw_path).resolve()
+        if not candidate.is_relative_to(self._repo_root):
+            return None
+        return candidate
+
     def _resolve_path(self, raw_path: str, *, allow_write: bool) -> Path | None:
         if self._repo_root is None:
             return None
@@ -149,6 +213,7 @@ def run_proofread_server(
         "default_csv_dir": "post/csv",
         "default_meta_dir": "post/meta",
         "default_columns_dir": "pre/columns",
+        "readme_stats_path": "README.md",
         "server_mode": True,
     }
 
