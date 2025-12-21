@@ -2,6 +2,14 @@
 
 WIP.
 
+### Proofreading Progress
+
+<!-- mcc:stats:start -->
+- Rows proofread: 2,695 / 57,073 (4.7%)
+- Columns proofread: 60 / 1,245 (4.8%)
+- Passes: pass 1: 60 cols / 2,695 rows
+<!-- mcc:stats:end -->
+
 ### Usage
 
 ```bash

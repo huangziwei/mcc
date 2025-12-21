@@ -13,6 +13,7 @@ from mcc.preprocess.ocr import ocr_columns
 from mcc.preprocess.render import render_pages
 from mcc.preprocess.segment import segment_pages
 from mcc.proofread.server import run_proofread_server
+from mcc.stats import collect_stats, format_stats_lines, update_readme_stats
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -194,6 +195,33 @@ def build_parser() -> argparse.ArgumentParser:
     )
     merge_parser.set_defaults(func=cmd_merge)
 
+    stats_parser = subparsers.add_parser(
+        "stats", help="Show proofreading progress stats"
+    )
+    stats_parser.add_argument(
+        "--csv",
+        dest="csv_dir",
+        default=repo_root / "post" / "csv",
+        type=Path,
+        help="Input CSV directory",
+    )
+    stats_parser.add_argument(
+        "--meta",
+        dest="meta_dir",
+        default=repo_root / "post" / "meta",
+        type=Path,
+        help="Metadata directory",
+    )
+    stats_parser.add_argument(
+        "--readme",
+        nargs="?",
+        const=repo_root / "README.md",
+        default=None,
+        type=Path,
+        help="Update README stats block (default: repo README)",
+    )
+    stats_parser.set_defaults(func=cmd_stats)
+
     return parser
 
 
@@ -261,6 +289,14 @@ def cmd_merge(args: argparse.Namespace) -> None:
         out_path=args.out,
         stats_mode=args.stats,
     )
+
+
+def cmd_stats(args: argparse.Namespace) -> None:
+    stats = collect_stats(csv_dir=args.csv_dir, meta_dir=args.meta_dir)
+    lines = format_stats_lines(stats)
+    print("\n".join(lines))
+    if args.readme is not None:
+        update_readme_stats(args.readme, stats)
 
 
 def main() -> int:
