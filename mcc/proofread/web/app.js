@@ -554,19 +554,29 @@
           highlightSelection();
         });
         input.addEventListener("keydown", (event) => {
-          if (event.key !== "Enter") {
+          if (
+            event.key !== "Enter" &&
+            event.key !== "ArrowUp" &&
+            event.key !== "ArrowDown"
+          ) {
             return;
           }
+          if (
+            event.altKey ||
+            event.ctrlKey ||
+            event.metaKey ||
+            event.shiftKey ||
+            event.isComposing
+          ) {
+            return;
+          }
+          const direction = event.key === "ArrowUp" ? -1 : event.key === "ArrowDown" ? 1 : 1;
           event.preventDefault();
-          const nextRow = rowIndex + 1;
-          if (nextRow >= state.tableData.length) {
+          const nextRow = rowIndex + direction;
+          if (nextRow < 0 || nextRow >= state.tableData.length) {
             return;
           }
-          const selector = `input[data-row='${nextRow}'][data-col='${colIndex}']`;
-          const nextInput = elements.tableContainer.querySelector(selector);
-          if (nextInput) {
-            nextInput.focus();
-          }
+          focusCell(nextRow, colIndex);
         });
         td.appendChild(input);
         tr.appendChild(td);
@@ -589,6 +599,14 @@
     const input = elements.tableContainer.querySelector(selector);
     if (input && input.parentElement) {
       input.parentElement.classList.add("selected");
+    }
+  }
+
+  function focusCell(rowIndex, colIndex) {
+    const selector = `input[data-row='${rowIndex}'][data-col='${colIndex}']`;
+    const input = elements.tableContainer.querySelector(selector);
+    if (input) {
+      input.focus();
     }
   }
 
