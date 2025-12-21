@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>MCC Proofread</title>
-  <link rel="stylesheet" href="styles.css?v=2" />
+  <link rel="stylesheet" href="styles.css?v=7" />
 </head>
 <body>
   <header class="toolbar panel">
@@ -36,24 +36,39 @@
         </div>
       </div>
       <div class="bulk-controls controls">
-        <span class="hint">Shift column</span>
-        <label for="shift-range">Range</label>
-        <select id="shift-range">
+        <span class="bulk-title">Shift column</span>
+        <label class="bulk-label" for="shift-range">Range</label>
+        <select id="shift-range" class="bulk-control">
           <option value="row">Row #</option>
           <option value="index">Index values</option>
         </select>
-        <label for="shift-start">From</label>
-        <input id="shift-start" class="bulk-input" type="number" min="1" step="1" placeholder="Start" />
-        <label for="shift-end">To</label>
-        <input id="shift-end" class="bulk-input" type="number" min="1" step="1" placeholder="End" />
-        <label for="shift-by">By</label>
-        <input id="shift-by" class="bulk-input" type="number" step="1" value="1" />
-        <select id="shift-mode">
+        <label class="bulk-label" for="shift-start">From</label>
+        <input
+          id="shift-start"
+          class="bulk-control"
+          type="number"
+          min="1"
+          step="1"
+          placeholder="Start"
+        />
+        <label class="bulk-label" for="shift-end">To</label>
+        <input
+          id="shift-end"
+          class="bulk-control"
+          type="number"
+          min="1"
+          step="1"
+          placeholder="End"
+        />
+        <label class="bulk-label" for="shift-by">By</label>
+        <input id="shift-by" class="bulk-control" type="number" step="1" value="1" />
+        <label class="bulk-label" for="shift-mode">Mode</label>
+        <select id="shift-mode" class="bulk-control">
           <option value="move">Move cells</option>
           <option value="offset">Offset numbers</option>
         </select>
-        <button id="shift-apply" type="button">Apply</button>
-        <span id="shift-target" class="hint">Target: select a column</span>
+        <button id="shift-apply" class="bulk-apply" type="button">Apply</button>
+        <span id="shift-target" class="hint bulk-target">Target: select a column</span>
       </div>
       <div id="table-container" class="table-container"></div>
     </section>
@@ -103,6 +118,6 @@
     <button id="stats-btn" type="button">Stats</button>
   </footer>
 
-  <script src="app.js?v=2"></script>
+  <script src="app.js?v=7"></script>
 </body>
 </html>
