@@ -35,6 +35,26 @@
           <button id="remove-col" type="button">Remove Column</button>
         </div>
       </div>
+      <div class="bulk-controls controls">
+        <span class="hint">Shift column</span>
+        <label for="shift-range">Range</label>
+        <select id="shift-range">
+          <option value="row">Row #</option>
+          <option value="index">Index values</option>
+        </select>
+        <label for="shift-start">From</label>
+        <input id="shift-start" class="bulk-input" type="number" min="1" step="1" placeholder="Start" />
+        <label for="shift-end">To</label>
+        <input id="shift-end" class="bulk-input" type="number" min="1" step="1" placeholder="End" />
+        <label for="shift-by">By</label>
+        <input id="shift-by" class="bulk-input" type="number" step="1" value="1" />
+        <select id="shift-mode">
+          <option value="move">Move cells</option>
+          <option value="offset">Offset numbers</option>
+        </select>
+        <button id="shift-apply" type="button">Apply</button>
+        <span id="shift-target" class="hint">Target: select a column</span>
+      </div>
       <div id="table-container" class="table-container"></div>
     </section>
 
