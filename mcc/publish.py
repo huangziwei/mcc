@@ -22,7 +22,7 @@ _INDEX_TEMPLATE = """<!DOCTYPE html>
       href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;600&family=Noto+Serif+SC:wght@400;600&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="styles.css?v=2" />
+    <link rel="stylesheet" href="styles.css?v=3" />
   </head>
   <body>
     <header class="top">
@@ -40,7 +40,7 @@ _INDEX_TEMPLATE = """<!DOCTYPE html>
       <div id="word-grid" class="word-grid" aria-live="polite"></div>
     </main>
     <div class="scroll-hint" id="scroll-hint">Scroll horizontally &rarr;</div>
-    <script src="app.js?v=2"></script>
+    <script src="app.js?v=3"></script>
   </body>
 </html>
 """
@@ -264,6 +264,9 @@ const elements = {
 };
 
 const STATS_PREFIX = "# mcc-stats:";
+const layoutState = { rows: 1 };
+const renderState = { entries: [], rendered: 0, chunkSize: 400 };
+let scrollTicking = false;
 
 function setStatus(message, isError = false) {
   elements.status.textContent = message;
@@ -413,10 +416,24 @@ function updateMeta(stats, shownCount, totalRows) {
     : "";
 }
 
-function renderWords(entries) {
-  elements.grid.textContent = "";
+function setChunkSize() {
+  const rows = layoutState.rows || 1;
+  const target = rows * 20;
+  renderState.chunkSize = Math.max(200, Math.min(target, 1200));
+}
+
+function renderNextChunk() {
+  if (renderState.rendered >= renderState.entries.length) {
+    return;
+  }
+  const start = renderState.rendered;
+  const end = Math.min(
+    start + renderState.chunkSize,
+    renderState.entries.length
+  );
   const fragment = document.createDocumentFragment();
-  entries.forEach((entry) => {
+  for (let i = start; i < end; i += 1) {
+    const entry = renderState.entries[i];
     const div = document.createElement("div");
     div.className = "word";
     const indexSpan = document.createElement("span");
@@ -428,9 +445,76 @@ function renderWords(entries) {
     div.appendChild(indexSpan);
     div.appendChild(textSpan);
     fragment.appendChild(div);
-  });
+  }
   elements.grid.appendChild(fragment);
-  elements.grid.classList.add("loaded");
+  renderState.rendered = end;
+  if (start === 0) {
+    elements.grid.classList.add("loaded");
+  }
+}
+
+function fillViewport() {
+  if (!elements.view) {
+    return;
+  }
+  let safety = 0;
+  let lastWidth = -1;
+  while (
+    renderState.rendered < renderState.entries.length &&
+    elements.view.scrollWidth <= elements.view.clientWidth + 40 &&
+    safety < 6
+  ) {
+    renderNextChunk();
+    if (elements.view.scrollWidth === lastWidth) {
+      break;
+    }
+    lastWidth = elements.view.scrollWidth;
+    safety += 1;
+  }
+}
+
+function shouldLoadMore() {
+  if (!elements.view) {
+    return false;
+  }
+  const threshold = Math.max(elements.view.clientWidth * 0.6, 320);
+  return (
+    elements.view.scrollLeft + elements.view.clientWidth >=
+    elements.view.scrollWidth - threshold
+  );
+}
+
+function maybeRenderMore() {
+  let safety = 0;
+  while (
+    shouldLoadMore() &&
+    renderState.rendered < renderState.entries.length &&
+    safety < 6
+  ) {
+    renderNextChunk();
+    safety += 1;
+  }
+}
+
+function resetRender(entries) {
+  renderState.entries = entries;
+  renderState.rendered = 0;
+  elements.grid.textContent = "";
+  elements.grid.classList.remove("loaded");
+  setChunkSize();
+  renderNextChunk();
+  fillViewport();
+}
+
+function onScroll() {
+  if (scrollTicking) {
+    return;
+  }
+  scrollTicking = true;
+  requestAnimationFrame(() => {
+    scrollTicking = false;
+    maybeRenderMore();
+  });
 }
 
 function updateLayout() {
@@ -454,10 +538,13 @@ function updateLayout() {
     : 0;
   const available = Math.max(1, appHeight - headerHeight - paddingY);
   const rows = Math.max(1, Math.floor(available / rowHeight));
+  layoutState.rows = rows;
   elements.grid.style.setProperty("--rows", rows);
   if (elements.view) {
     elements.view.style.height = `${rows * rowHeight + paddingY}px`;
   }
+  setChunkSize();
+  fillViewport();
 }
 
 function applyTitle() {
@@ -516,6 +603,9 @@ async function loadWords() {
 async function init() {
   applyTitle();
   updateLayout();
+  if (elements.view) {
+    elements.view.addEventListener("scroll", onScroll, { passive: true });
+  }
   window.addEventListener("resize", () => {
     window.clearTimeout(window.__mccResizeTimer);
     window.__mccResizeTimer = window.setTimeout(updateLayout, 150);
@@ -525,7 +615,7 @@ async function init() {
   }
   try {
     const { stats, entries, totalRows } = await loadWords();
-    renderWords(entries);
+    resetRender(entries);
     updateLayout();
     updateMeta(stats, entries.length, totalRows);
     setStatus(CONFIG.proofreadOnly ? "Showing proofread words" : "Showing all words");
