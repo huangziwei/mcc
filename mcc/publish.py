@@ -22,7 +22,7 @@ _INDEX_TEMPLATE = """<!DOCTYPE html>
       href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;600&family=Noto+Serif+SC:wght@400;600&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="styles.css?v=6" />
+    <link rel="stylesheet" href="styles.css?v=7" />
   </head>
   <body>
     <header class="top">
@@ -51,7 +51,7 @@ _INDEX_TEMPLATE = """<!DOCTYPE html>
       <div id="word-grid" class="word-grid" aria-live="polite"></div>
     </main>
     <div class="scroll-hint" id="scroll-hint">Scroll horizontally &rarr;</div>
-    <script src="app.js?v=6"></script>
+    <script src="app.js?v=7"></script>
   </body>
 </html>
 """
@@ -271,6 +271,13 @@ body::before {
   letter-spacing: 0.08em;
 }
 
+.word-text .erhua {
+  font-size: 0.72em;
+  letter-spacing: 0;
+  margin-left: 0.06em;
+  opacity: 0.75;
+}
+
 .scroll-hint {
   position: fixed;
   right: 18px;
@@ -326,6 +333,7 @@ const elements = {
 };
 
 const STATS_PREFIX = "# mcc-stats:";
+const ERHUA_EXCEPTIONS = new Set(["儿", "女儿"]);
 const dataState = {
   stats: null,
   totalRows: 0,
@@ -345,6 +353,20 @@ function setStatus(message, isError = false) {
 
 function formatNumber(value) {
   return Number(value || 0).toLocaleString("en-US");
+}
+
+function appendWordText(target, word) {
+  if (word.endsWith("儿") && !ERHUA_EXCEPTIONS.has(word)) {
+    const prefix = word.slice(0, -1);
+    target.textContent = "";
+    target.appendChild(document.createTextNode(prefix));
+    const small = document.createElement("small");
+    small.className = "erhua";
+    small.textContent = "儿";
+    target.appendChild(small);
+    return;
+  }
+  target.textContent = word;
 }
 
 function formatPercent(numerator, denominator) {
@@ -640,7 +662,7 @@ function renderNextChunk() {
     indexSpan.textContent = entry.rank;
     const textSpan = document.createElement("span");
     textSpan.className = "word-text";
-    textSpan.textContent = entry.word;
+    appendWordText(textSpan, entry.word);
     div.appendChild(indexSpan);
     div.appendChild(textSpan);
     fragment.appendChild(div);

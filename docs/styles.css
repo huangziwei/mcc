@@ -213,6 +213,13 @@ body::before {
   letter-spacing: 0.08em;
 }
 
+.word-text .erhua {
+  font-size: 0.72em;
+  letter-spacing: 0;
+  margin-left: 0.06em;
+  opacity: 0.75;
+}
+
 .scroll-hint {
   position: fixed;
   right: 18px;

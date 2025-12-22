@@ -1,7 +1,7 @@
 const CONFIG = {
-    csvUrl: "https://raw.githubusercontent.com/huangziwei/mcc/refs/heads/main/post/merged/modern-chinese-common-words.csv",
-    title: "Modern Chinese Common Words",
-    proofreadOnly: true,
+  csvUrl: "https://raw.githubusercontent.com/huangziwei/mcc/refs/heads/main/post/merged/modern-chinese-common-words.csv",
+  title: "Modern Chinese Common Words",
+  proofreadOnly: true,
 };
 
 const elements = {
@@ -14,6 +14,7 @@ const elements = {
 };
 
 const STATS_PREFIX = "# mcc-stats:";
+const ERHUA_EXCEPTIONS = new Set(["儿", "女儿"]);
 const dataState = {
   stats: null,
   totalRows: 0,
@@ -27,12 +28,26 @@ const renderState = { entries: [], rendered: 0, chunkSize: 400 };
 let scrollTicking = false;
 
 function setStatus(message, isError = false) {
-    elements.status.textContent = message;
-    elements.status.classList.toggle("error", isError);
+  elements.status.textContent = message;
+  elements.status.classList.toggle("error", isError);
 }
 
 function formatNumber(value) {
     return Number(value || 0).toLocaleString("en-US");
+}
+
+function appendWordText(target, word) {
+  if (word.endsWith("儿") && !ERHUA_EXCEPTIONS.has(word)) {
+    const prefix = word.slice(0, -1);
+    target.textContent = "";
+    target.appendChild(document.createTextNode(prefix));
+    const small = document.createElement("small");
+    small.className = "erhua";
+    small.textContent = "儿";
+    target.appendChild(small);
+    return;
+  }
+  target.textContent = word;
 }
 
 function formatPercent(numerator, denominator) {
@@ -177,122 +192,122 @@ function initFilters() {
 }
 
 function parseCsv(text) {
-    const rows = [];
-    let row = [];
-    let cell = "";
-    let inQuotes = false;
-    for (let i = 0; i < text.length; i += 1) {
-        const char = text[i];
-        if (inQuotes) {
-            if (char === '"') {
-                if (text[i + 1] === '"') {
-                    cell += '"';
-                    i += 1;
-                } else {
-                    inQuotes = false;
-                }
-            } else {
-                cell += char;
-            }
-        } else if (char === '"') {
-            inQuotes = true;
-        } else if (char === ",") {
-            row.push(cell);
-            cell = "";
-        } else if (char === "\n") {
-            row.push(cell);
-            rows.push(row);
-            row = [];
-            cell = "";
-        } else if (char === "\r") {
-            continue;
+  const rows = [];
+  let row = [];
+  let cell = "";
+  let inQuotes = false;
+  for (let i = 0; i < text.length; i += 1) {
+    const char = text[i];
+    if (inQuotes) {
+      if (char === '"') {
+        if (text[i + 1] === '"') {
+          cell += '"';
+          i += 1;
         } else {
-            cell += char;
+          inQuotes = false;
         }
+      } else {
+        cell += char;
+      }
+    } else if (char === '"') {
+      inQuotes = true;
+    } else if (char === ",") {
+      row.push(cell);
+      cell = "";
+    } else if (char === "\n") {
+      row.push(cell);
+      rows.push(row);
+      row = [];
+      cell = "";
+    } else if (char === "\r") {
+      continue;
+    } else {
+      cell += char;
     }
-    row.push(cell);
-    if (row.length > 1 || row[0] !== "") {
-        rows.push(row);
-    }
-    return rows;
+  }
+  row.push(cell);
+  if (row.length > 1 || row[0] !== "") {
+    rows.push(row);
+  }
+  return rows;
 }
 
 function stripStatsHeader(text) {
-    let stats = null;
-    const lines = text.split(/\r?\n/);
-    const filtered = [];
-    for (const line of lines) {
-        if (!stats && line.startsWith(STATS_PREFIX)) {
-            const payload = line.slice(STATS_PREFIX.length).trim();
-            try {
-                stats = JSON.parse(payload);
-            } catch (error) {
-                stats = null;
-            }
-            continue;
-        }
-        if (line.startsWith("#")) {
-            continue;
-        }
-        filtered.push(line);
+  let stats = null;
+  const lines = text.split(/\r?\n/);
+  const filtered = [];
+  for (const line of lines) {
+    if (!stats && line.startsWith(STATS_PREFIX)) {
+      const payload = line.slice(STATS_PREFIX.length).trim();
+      try {
+        stats = JSON.parse(payload);
+      } catch (error) {
+        stats = null;
+      }
+      continue;
     }
-    return { stats, csvText: filtered.join("\n") };
+    if (line.startsWith("#")) {
+      continue;
+    }
+    filtered.push(line);
+  }
+  return { stats, csvText: filtered.join("\n") };
 }
 
 function normalizeRanges(values) {
-    const ranges = [];
-    if (!Array.isArray(values)) {
-        return ranges;
-    }
-    values.forEach((entry) => {
-        if (Array.isArray(entry) && entry.length >= 2) {
-            ranges.push([Number(entry[0]), Number(entry[1])]);
-        } else if (Number.isFinite(entry)) {
-            ranges.push([Number(entry), Number(entry)]);
-        }
-    });
+  const ranges = [];
+  if (!Array.isArray(values)) {
     return ranges;
+  }
+  values.forEach((entry) => {
+    if (Array.isArray(entry) && entry.length >= 2) {
+      ranges.push([Number(entry[0]), Number(entry[1])]);
+    } else if (Number.isFinite(entry)) {
+      ranges.push([Number(entry), Number(entry)]);
+    }
+  });
+  return ranges;
 }
 
 function collectProofreadRanges(stats) {
-    const rangesByPass = stats && stats.rows ? stats.rows.ranges_by_pass : null;
-    if (!rangesByPass || typeof rangesByPass !== "object") {
-        return null;
+  const rangesByPass = stats && stats.rows ? stats.rows.ranges_by_pass : null;
+  if (!rangesByPass || typeof rangesByPass !== "object") {
+    return null;
+  }
+  let ranges = [];
+  Object.keys(rangesByPass).forEach((passKey) => {
+    ranges = ranges.concat(normalizeRanges(rangesByPass[passKey]));
+  });
+  if (!ranges.length) {
+    return null;
+  }
+  ranges.sort((a, b) => a[0] - b[0]);
+  const merged = [ranges[0]];
+  for (let i = 1; i < ranges.length; i += 1) {
+    const prev = merged[merged.length - 1];
+    const current = ranges[i];
+    if (current[0] <= prev[1] + 1) {
+      prev[1] = Math.max(prev[1], current[1]);
+    } else {
+      merged.push(current);
     }
-    let ranges = [];
-    Object.keys(rangesByPass).forEach((passKey) => {
-        ranges = ranges.concat(normalizeRanges(rangesByPass[passKey]));
-    });
-    if (!ranges.length) {
-        return null;
-    }
-    ranges.sort((a, b) => a[0] - b[0]);
-    const merged = [ranges[0]];
-    for (let i = 1; i < ranges.length; i += 1) {
-        const prev = merged[merged.length - 1];
-        const current = ranges[i];
-        if (current[0] <= prev[1] + 1) {
-            prev[1] = Math.max(prev[1], current[1]);
-        } else {
-            merged.push(current);
-        }
-    }
-    return merged;
+  }
+  return merged;
 }
 
 function createRangeChecker(ranges) {
-    if (!ranges || ranges.length === 0) {
-        return null;
+  if (!ranges || ranges.length === 0) {
+    return null;
+  }
+  let rangeIndex = 0;
+  let current = ranges[0];
+  return (rowIndex) => {
+    while (current && rowIndex > current[1]) {
+      rangeIndex += 1;
+      current = ranges[rangeIndex];
     }
-    let rangeIndex = 0;
-    let current = ranges[0];
-    return (rowIndex) => {
-        while (current && rowIndex > current[1]) {
-            rangeIndex += 1;
-            current = ranges[rangeIndex];
-        }
-        return !!current && rowIndex >= current[0] && rowIndex <= current[1];
-    };
+    return !!current && rowIndex >= current[0] && rowIndex <= current[1];
+  };
 }
 
 function updateMeta() {
@@ -328,7 +343,7 @@ function renderNextChunk() {
     indexSpan.textContent = entry.rank;
     const textSpan = document.createElement("span");
     textSpan.className = "word-text";
-    textSpan.textContent = entry.word;
+    appendWordText(textSpan, entry.word);
     div.appendChild(indexSpan);
     div.appendChild(textSpan);
     fragment.appendChild(div);
@@ -408,16 +423,24 @@ function onScroll() {
 }
 
 function updateLayout() {
-    const appHeight = window.innerHeight;
-    document.documentElement.style.setProperty("--app-height", `${appHeight}px`);
-    const headerHeight = elements.header ? elements.header.getBoundingClientRect().height : 0;
-    document.documentElement.style.setProperty("--header-height", `${headerHeight}px`);
-    const rowHeightValue = getComputedStyle(document.documentElement).getPropertyValue("--row-height").trim();
-    const rowHeight = Number.parseFloat(rowHeightValue) || 32;
-    const viewStyles = elements.view ? getComputedStyle(elements.view) : null;
-    const paddingY = viewStyles
-        ? Number.parseFloat(viewStyles.paddingTop) + Number.parseFloat(viewStyles.paddingBottom)
-        : 0;
+  const appHeight = window.innerHeight;
+  document.documentElement.style.setProperty("--app-height", `${appHeight}px`);
+  const headerHeight = elements.header
+    ? elements.header.getBoundingClientRect().height
+    : 0;
+  document.documentElement.style.setProperty(
+    "--header-height",
+    `${headerHeight}px`
+  );
+  const rowHeightValue = getComputedStyle(document.documentElement)
+    .getPropertyValue("--row-height")
+    .trim();
+  const rowHeight = Number.parseFloat(rowHeightValue) || 32;
+  const viewStyles = elements.view ? getComputedStyle(elements.view) : null;
+  const paddingY = viewStyles
+    ? Number.parseFloat(viewStyles.paddingTop) +
+      Number.parseFloat(viewStyles.paddingBottom)
+    : 0;
   const available = Math.max(1, appHeight - headerHeight - paddingY);
   const rows = Math.max(1, Math.floor(available / rowHeight));
   layoutState.rows = rows;
@@ -430,28 +453,28 @@ function updateLayout() {
 }
 
 function applyTitle() {
-    if (!CONFIG.title) {
-        return;
-    }
-    document.title = CONFIG.title;
-    const titleEl = document.querySelector(".title-main");
-    if (titleEl) {
-        titleEl.textContent = CONFIG.title;
-    }
+  if (!CONFIG.title) {
+    return;
+  }
+  document.title = CONFIG.title;
+  const titleEl = document.querySelector(".title-main");
+  if (titleEl) {
+    titleEl.textContent = CONFIG.title;
+  }
 }
 
 async function loadWords() {
-    setStatus("Loading merged CSV...");
-    const response = await fetch(CONFIG.csvUrl, { cache: "no-store" });
-    if (!response.ok) {
-        throw new Error(`Fetch failed: ${response.status}`);
-    }
-    const text = await response.text();
-    const { stats, csvText } = stripStatsHeader(text);
-    const rows = parseCsv(csvText);
-    if (!rows.length) {
-        throw new Error("CSV has no rows.");
-    }
+  setStatus("Loading merged CSV...");
+  const response = await fetch(CONFIG.csvUrl, { cache: "no-store" });
+  if (!response.ok) {
+    throw new Error(`Fetch failed: ${response.status}`);
+  }
+  const text = await response.text();
+  const { stats, csvText } = stripStatsHeader(text);
+  const rows = parseCsv(csvText);
+  if (!rows.length) {
+    throw new Error("CSV has no rows.");
+  }
   const header = rows[0].map((value) => value.trim().toLowerCase());
   let indexIndex = header.indexOf("index");
   if (indexIndex === -1) {
@@ -462,8 +485,8 @@ async function loadWords() {
     wordIndex = 1;
   }
 
-    const proofreadRanges = collectProofreadRanges(stats);
-    const isProofreadRow = createRangeChecker(proofreadRanges);
+  const proofreadRanges = collectProofreadRanges(stats);
+  const isProofreadRow = createRangeChecker(proofreadRanges);
   const lengthStats = {
     totalByLength: {},
     proofreadByLength: {},
@@ -497,20 +520,20 @@ async function loadWords() {
 }
 
 async function init() {
-    applyTitle();
+  applyTitle();
   initFilters();
   updateLayout();
   if (elements.view) {
     elements.view.addEventListener("scroll", onScroll, { passive: true });
   }
   window.addEventListener("resize", () => {
-        window.clearTimeout(window.__mccResizeTimer);
-        window.__mccResizeTimer = window.setTimeout(updateLayout, 150);
-    });
-    if (document.fonts && document.fonts.ready) {
-        document.fonts.ready.then(updateLayout).catch(() => null);
-    }
-    try {
+    window.clearTimeout(window.__mccResizeTimer);
+    window.__mccResizeTimer = window.setTimeout(updateLayout, 150);
+  });
+  if (document.fonts && document.fonts.ready) {
+    document.fonts.ready.then(updateLayout).catch(() => null);
+  }
+  try {
     const { stats, entries, totalRows, lengthStats } = await loadWords();
     dataState.stats = stats;
     dataState.totalRows = totalRows;
@@ -518,10 +541,10 @@ async function init() {
     dataState.lengthStats = lengthStats;
     applyFilter(filterState.value);
     updateLayout();
-    } catch (error) {
-        setStatus("Failed to load word list.", true);
-        elements.count.textContent = "";
-    }
+  } catch (error) {
+    setStatus("Failed to load word list.", true);
+    elements.count.textContent = "";
+  }
 }
 
 init();
