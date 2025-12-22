@@ -1,60 +1,58 @@
 <!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Modern Chinese Common Words</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link
-      href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;600&family=Noto+Serif+SC:wght@400;600&display=swap"
-      rel="stylesheet"
-    />
-    <link rel="stylesheet" href="styles.css?v=13" />
-  </head>
-  <body>
-    <header class="top">
-      <div class="title">
-        <div class="title-main">Modern Chinese Common Words</div>
-        <div class="search">
-          <label class="sr-only" for="search-input">Search words</label>
-          <input
-            id="search-input"
-            class="search-input"
-            type="search"
-            placeholder="Search words"
-            autocomplete="off"
-            spellcheck="false"
-          />
-        </div>
-      </div>
-      <div class="filters">
-        <div class="filter-label">Length</div>
-        <div class="filter-group" role="group" aria-label="Filter by word length">
-          <button class="filter-btn is-active" type="button" data-length-filter="all">
-            All
-          </button>
-          <button class="filter-btn" type="button" data-length-filter="1">1</button>
-          <button class="filter-btn" type="button" data-length-filter="2">2</button>
-          <button class="filter-btn" type="button" data-length-filter="3">3</button>
-          <button class="filter-btn" type="button" data-length-filter="4+">4+</button>
-        </div>
-      </div>
-      <div class="meta">
-        <div id="status" class="status">Loading...</div>
-        <div id="count" class="count"></div>
-      </div>
-    </header>
-    <main id="word-view" class="word-view">
-      <div id="word-grid" class="word-grid" aria-live="polite"></div>
-    </main>
-    <footer class="footer">
-      <div class="footer-inner">
-        Source: 李行健、苏新春（主编）. 《现代汉语常用词表（第2版）》. 北京：商务印书馆, 2021.
-        ISBN 978-7-100-20011-0.
-      </div>
-    </footer>
-    <div class="scroll-hint" id="scroll-hint">Scroll horizontally &rarr;</div>
-    <script src="app.js?v=13"></script>
-  </body>
+    <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <title>Modern Chinese Common Words</title>
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+        <link
+            href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;600&family=Noto+Serif+SC:wght@400;600&display=swap"
+            rel="stylesheet"
+        />
+        <link rel="stylesheet" href="styles.css?v=14" />
+    </head>
+    <body>
+        <header class="top">
+            <div class="title">
+                <div class="title-main">Modern Chinese Common Words</div>
+                <div class="search">
+                    <label class="sr-only" for="search-input">Search words</label>
+                    <input
+                        id="search-input"
+                        class="search-input"
+                        type="search"
+                        placeholder="Search words"
+                        autocomplete="off"
+                        spellcheck="false"
+                    />
+                </div>
+            </div>
+            <div class="filters">
+                <div class="filter-label">Length</div>
+                <div class="filter-group" role="group" aria-label="Filter by word length">
+                    <button class="filter-btn is-active" type="button" data-length-filter="all">All</button>
+                    <button class="filter-btn" type="button" data-length-filter="1">1</button>
+                    <button class="filter-btn" type="button" data-length-filter="2">2</button>
+                    <button class="filter-btn" type="button" data-length-filter="3">3</button>
+                    <button class="filter-btn" type="button" data-length-filter="4+">4+</button>
+                </div>
+            </div>
+            <div class="meta">
+                <div id="status" class="status">Loading...</div>
+                <div id="count" class="count"></div>
+            </div>
+        </header>
+        <main id="word-view" class="word-view">
+            <div id="word-grid" class="word-grid" aria-live="polite"></div>
+        </main>
+        <footer class="footer">
+            <div class="footer-inner">
+                Source: 李行健、苏新春（主编）. 《现代汉语常用词表（第2版）》. 北京：商务印书馆, 2021. ISBN
+                978-7-100-20011-0.
+            </div>
+        </footer>
+        <div class="scroll-hint" id="scroll-hint">Scroll horizontally &rarr;</div>
+        <script src="app.js?v=14"></script>
+    </body>
 </html>
