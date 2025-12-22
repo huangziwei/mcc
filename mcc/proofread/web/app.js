@@ -1182,6 +1182,25 @@
     elements.imageFrame.classList.remove("dragging");
   }
 
+  function onGlobalKeydown(event) {
+    if (event.isComposing || event.repeat) {
+      return;
+    }
+    if (!event.metaKey && !event.ctrlKey) {
+      return;
+    }
+    if (event.altKey) {
+      return;
+    }
+    const key = event.key.toLowerCase();
+    if (key !== "s") {
+      return;
+    }
+    event.preventDefault();
+    event.stopPropagation();
+    saveCurrent();
+  }
+
   function bindEvents() {
     elements.columnSelect.addEventListener("change", (event) => {
       const index = Number(event.target.value);
@@ -1205,6 +1224,7 @@
     elements.imageFrame.addEventListener("pointerdown", onPointerDown);
     window.addEventListener("pointermove", onPointerMove);
     window.addEventListener("pointerup", onPointerUp);
+    window.addEventListener("keydown", onGlobalKeydown);
     elements.image.addEventListener("load", fitToWidth);
     elements.metaBy.addEventListener("input", () => {
       setStoredProofreadBy(elements.metaBy.value.trim());
