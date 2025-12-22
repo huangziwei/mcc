@@ -1193,6 +1193,16 @@
       return;
     }
     const key = event.key.toLowerCase();
+    const code = event.code;
+    const isPrev = key === "j" || code === "KeyJ";
+    const isNext = key === "k" || code === "KeyK";
+    if (isPrev || isNext) {
+      event.preventDefault();
+      event.stopPropagation();
+      const direction = isPrev ? -1 : 1;
+      navigateTo(state.currentIndex + direction);
+      return;
+    }
     if (key !== "s") {
       return;
     }
