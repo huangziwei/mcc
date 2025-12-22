@@ -16,19 +16,7 @@ const elements = {
 };
 
 const STATS_PREFIX = "# mcc-stats:";
-const ERHUA_EXCEPTIONS = new Set([
-    "儿",
-    "女儿",
-    "男儿",
-    "新生儿",
-    "婴儿",
-    "少儿",
-    "孤儿",
-    "幼儿",
-    "小儿",
-    "健儿",
-    "胎儿",
-]);
+const ERHUA_EXCEPTIONS = new Set(["儿", "女儿", "男儿", "新生儿", "婴儿", "少儿", "孤儿", "幼儿", "小儿", "健儿", "胎儿"]);
 const dataState = {
     stats: null,
     allEntries: [],
@@ -51,9 +39,7 @@ function formatNumber(value) {
 }
 
 function normalizeQuery(value) {
-    return String(value || "")
-        .trim()
-        .toLowerCase();
+    return String(value || "").trim().toLowerCase();
 }
 
 function scheduleFilterUpdate() {
@@ -194,7 +180,9 @@ function initFilters() {
             applyFilter(button.dataset.lengthFilter);
         });
     });
-    const active = elements.filterButtons.find((button) => button.classList.contains("is-active"));
+    const active = elements.filterButtons.find((button) =>
+        button.classList.contains("is-active")
+    );
     filterState.value = active ? active.dataset.lengthFilter : "all";
 }
 
@@ -333,9 +321,10 @@ function createRangeChecker(ranges) {
 
 function updateMeta() {
     const { proofread, total } = dataState.matchCounts;
-    elements.count.textContent = `Proofread: ${formatPercent(proofread, total)} (${formatNumber(
-        proofread
-    )} / ${formatNumber(total)})`;
+    elements.count.textContent = `Proofread: ${formatPercent(
+        proofread,
+        total
+    )} (${formatNumber(proofread)} / ${formatNumber(total)})`;
 }
 
 function setChunkSize() {
@@ -349,7 +338,10 @@ function renderNextChunk() {
         return;
     }
     const start = renderState.rendered;
-    const end = Math.min(start + renderState.chunkSize, renderState.entries.length);
+    const end = Math.min(
+        start + renderState.chunkSize,
+        renderState.entries.length
+    );
     const fragment = document.createDocumentFragment();
     for (let i = start; i < end; i += 1) {
         const entry = renderState.entries[i];
@@ -397,12 +389,19 @@ function shouldLoadMore() {
         return false;
     }
     const threshold = Math.max(elements.view.clientWidth * 0.6, 320);
-    return elements.view.scrollLeft + elements.view.clientWidth >= elements.view.scrollWidth - threshold;
+    return (
+        elements.view.scrollLeft + elements.view.clientWidth >=
+        elements.view.scrollWidth - threshold
+    );
 }
 
 function maybeRenderMore() {
     let safety = 0;
-    while (shouldLoadMore() && renderState.rendered < renderState.entries.length && safety < 6) {
+    while (
+        shouldLoadMore() &&
+        renderState.rendered < renderState.entries.length &&
+        safety < 6
+    ) {
         renderNextChunk();
         safety += 1;
     }
@@ -449,18 +448,32 @@ function getRowHeight() {
 }
 
 function updateLayout() {
-    const viewportHeight = document.documentElement.clientHeight || window.innerHeight;
-    const visualHeight = window.visualViewport ? window.visualViewport.height : viewportHeight;
+    const viewportHeight =
+        document.documentElement.clientHeight || window.innerHeight;
+    const visualHeight = window.visualViewport
+        ? window.visualViewport.height
+        : viewportHeight;
     const appHeight = Math.min(visualHeight, viewportHeight);
     document.documentElement.style.setProperty("--app-height", `${appHeight}px`);
-    const headerHeight = elements.header ? elements.header.getBoundingClientRect().height : 0;
-    const footerHeight = elements.footer ? elements.footer.getBoundingClientRect().height : 0;
-    document.documentElement.style.setProperty("--header-height", `${headerHeight}px`);
-    document.documentElement.style.setProperty("--footer-height", `${footerHeight}px`);
+    const headerHeight = elements.header
+        ? elements.header.getBoundingClientRect().height
+        : 0;
+    const footerHeight = elements.footer
+        ? elements.footer.getBoundingClientRect().height
+        : 0;
+    document.documentElement.style.setProperty(
+        "--header-height",
+        `${headerHeight}px`
+    );
+    document.documentElement.style.setProperty(
+        "--footer-height",
+        `${footerHeight}px`
+    );
     const rowHeight = getRowHeight();
     const viewStyles = elements.view ? getComputedStyle(elements.view) : null;
     const paddingY = viewStyles
-        ? Number.parseFloat(viewStyles.paddingTop) + Number.parseFloat(viewStyles.paddingBottom)
+        ? Number.parseFloat(viewStyles.paddingTop) +
+            Number.parseFloat(viewStyles.paddingBottom)
         : 0;
     const viewHeight = elements.view
         ? elements.view.clientHeight
@@ -518,7 +531,8 @@ async function loadWords() {
         const length = wordLength(word);
         const proofread = isProofreadRow ? isProofreadRow(rowIndex) : true;
         const rankRaw = rows[i][indexIndex];
-        const rank = rankRaw && String(rankRaw).trim() ? String(rankRaw).trim() : String(i);
+        const rank =
+            rankRaw && String(rankRaw).trim() ? String(rankRaw).trim() : String(i);
         entries.push({
             rank,
             word,

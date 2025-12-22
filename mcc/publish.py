@@ -407,7 +407,19 @@ const elements = {
 };
 
 const STATS_PREFIX = "# mcc-stats:";
-const ERHUA_EXCEPTIONS = new Set(["儿", "女儿", "男儿", "新生儿", "婴儿", "少儿", "孤儿", "幼儿", "小儿", "健儿", "胎儿"]);
+const ERHUA_EXCEPTIONS = new Set([
+    "儿",
+    "女儿",
+    "男儿",
+    "新生儿",
+    "婴儿",
+    "少儿",
+    "孤儿",
+    "幼儿",
+    "小儿",
+    "健儿",
+    "胎儿",
+]);
 const dataState = {
     stats: null,
     allEntries: [],
