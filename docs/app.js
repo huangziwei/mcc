@@ -467,8 +467,8 @@ function updateLayout() {
         : Math.max(1, appHeight - headerHeight - footerHeight);
     const available = Math.max(1, viewHeight - paddingY);
     const rows = Math.max(1, Math.floor(available / rowHeight));
-    layoutState.rows = rows;
-    elements.grid.style.setProperty("--rows", rows);
+    layoutState.rows = rows + 1;
+    elements.grid.style.setProperty("--rows", rows + 1);
     setChunkSize();
     fillViewport();
 }
