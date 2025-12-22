@@ -201,7 +201,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     publish_parser.add_argument(
         "--site-dir",
-        default=repo_root / "sites",
+        default=repo_root / "docs",
         type=Path,
         help="Output directory for the published site",
     )
