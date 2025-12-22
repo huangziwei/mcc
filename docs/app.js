@@ -8,21 +8,23 @@ const elements = {
   grid: document.getElementById("word-grid"),
   status: document.getElementById("status"),
   count: document.getElementById("count"),
+  searchInput: document.getElementById("search-input"),
   view: document.getElementById("word-view"),
   header: document.querySelector(".top"),
+  footer: document.querySelector(".footer"),
   filterButtons: Array.from(document.querySelectorAll("[data-length-filter]")),
 };
 
 const STATS_PREFIX = "# mcc-stats:";
-const ERHUA_EXCEPTIONS = new Set(["儿", "女儿"]);
+const ERHUA_EXCEPTIONS = new Set(["儿", "女儿", "男儿", "新生儿", "婴儿", "少儿", "孤儿", "幼儿", "小儿", "健儿", "胎儿"]);
 const dataState = {
   stats: null,
-  totalRows: 0,
   allEntries: [],
   filteredEntries: [],
-  lengthStats: null,
+  matchCounts: { proofread: 0, total: 0 },
 };
 const filterState = { value: "all" };
+const searchState = { query: "", timer: null };
 const layoutState = { rows: 1 };
 const renderState = { entries: [], rendered: 0, chunkSize: 400 };
 let scrollTicking = false;
@@ -33,7 +35,21 @@ function setStatus(message, isError = false) {
 }
 
 function formatNumber(value) {
-    return Number(value || 0).toLocaleString("en-US");
+  return Number(value || 0).toLocaleString("en-US");
+}
+
+function normalizeQuery(value) {
+  return String(value || "").trim().toLowerCase();
+}
+
+function scheduleFilterUpdate() {
+  if (searchState.timer) {
+    window.clearTimeout(searchState.timer);
+  }
+  searchState.timer = window.setTimeout(() => {
+    searchState.timer = null;
+    applyFilters();
+  }, 120);
 }
 
 function appendWordText(target, word) {
@@ -88,72 +104,28 @@ function formatFilterLabel(value) {
   return `${value} chars`;
 }
 
-function filterEntries(entries, value) {
-  const parsed = parseFilterValue(value);
+function matchesLength(entry, parsed) {
   if (parsed.mode === "all") {
-    return entries;
-  }
-  return entries.filter((entry) => {
-    const length = wordLength(entry.word);
-    if (parsed.mode === "exact") {
-      return length === parsed.value;
-    }
-    return length >= parsed.value;
-  });
-}
-
-function sumCounts(byLength, minValue) {
-  if (!byLength) {
-    return 0;
-  }
-  let total = 0;
-  Object.entries(byLength).forEach(([key, value]) => {
-    const length = Number.parseInt(key, 10);
-    if (!Number.isFinite(length)) {
-      return;
-    }
-    if (minValue === null || length >= minValue) {
-      total += Number(value) || 0;
-    }
-  });
-  return total;
-}
-
-function getCountsForFilter() {
-  const lengthStats = dataState.lengthStats;
-  const parsed = parseFilterValue(filterState.value);
-  if (!lengthStats) {
-    const total = dataState.totalRows || dataState.filteredEntries.length;
-    return { proofread: dataState.filteredEntries.length, total };
-  }
-  if (parsed.mode === "all") {
-    return {
-      proofread: lengthStats.proofreadWords,
-      total: lengthStats.totalWords,
-    };
+    return true;
   }
   if (parsed.mode === "exact") {
-    return {
-      proofread: lengthStats.proofreadByLength[parsed.value] || 0,
-      total: lengthStats.totalByLength[parsed.value] || 0,
-    };
+    return entry.length === parsed.value;
   }
-  if (parsed.mode === "min") {
-    return {
-      proofread: sumCounts(lengthStats.proofreadByLength, parsed.value),
-      total: sumCounts(lengthStats.totalByLength, parsed.value),
-    };
+  return entry.length >= parsed.value;
+}
+
+function matchesSearch(entry, query) {
+  if (!query) {
+    return true;
   }
-  return {
-    proofread: lengthStats.proofreadWords,
-    total: lengthStats.totalWords,
-  };
+  return entry.search.includes(query);
 }
 
 function updateStatusText() {
   const base = CONFIG.proofreadOnly ? "Proofread words" : "All words";
   const label = formatFilterLabel(filterState.value);
-  setStatus(`${base} • ${label}`);
+  const queryLabel = searchState.query ? ` • "${searchState.query}"` : "";
+  setStatus(`${base} • ${label}${queryLabel}`);
 }
 
 function updateFilterButtons() {
@@ -164,16 +136,38 @@ function updateFilterButtons() {
   });
 }
 
-function applyFilter(value) {
-  filterState.value = value || "all";
-  dataState.filteredEntries = filterEntries(
-    dataState.allEntries,
-    filterState.value
-  );
-  resetRender(dataState.filteredEntries);
+function applyFilters() {
+  const parsed = parseFilterValue(filterState.value);
+  const query = searchState.query;
+  const displayEntries = [];
+  const counts = { proofread: 0, total: 0 };
+  for (const entry of dataState.allEntries) {
+    if (!matchesLength(entry, parsed)) {
+      continue;
+    }
+    if (!matchesSearch(entry, query)) {
+      continue;
+    }
+    counts.total += 1;
+    if (entry.proofread) {
+      counts.proofread += 1;
+    }
+    if (CONFIG.proofreadOnly && !entry.proofread) {
+      continue;
+    }
+    displayEntries.push(entry);
+  }
+  dataState.filteredEntries = displayEntries;
+  dataState.matchCounts = counts;
+  resetRender(displayEntries);
   updateMeta();
   updateStatusText();
   updateFilterButtons();
+}
+
+function applyFilter(value) {
+  filterState.value = value || "all";
+  applyFilters();
 }
 
 function initFilters() {
@@ -189,6 +183,20 @@ function initFilters() {
     button.classList.contains("is-active")
   );
   filterState.value = active ? active.dataset.lengthFilter : "all";
+}
+
+function initSearch() {
+  if (!elements.searchInput) {
+    return;
+  }
+  elements.searchInput.addEventListener("input", () => {
+    const next = normalizeQuery(elements.searchInput.value);
+    if (next === searchState.query) {
+      return;
+    }
+    searchState.query = next;
+    scheduleFilterUpdate();
+  });
 }
 
 function parseCsv(text) {
@@ -311,7 +319,7 @@ function createRangeChecker(ranges) {
 }
 
 function updateMeta() {
-  const { proofread, total } = getCountsForFilter();
+  const { proofread, total } = dataState.matchCounts;
   elements.count.textContent = `Proofread: ${formatPercent(
     proofread,
     total
@@ -428,9 +436,16 @@ function updateLayout() {
   const headerHeight = elements.header
     ? elements.header.getBoundingClientRect().height
     : 0;
+  const footerHeight = elements.footer
+    ? elements.footer.getBoundingClientRect().height
+    : 0;
   document.documentElement.style.setProperty(
     "--header-height",
     `${headerHeight}px`
+  );
+  document.documentElement.style.setProperty(
+    "--footer-height",
+    `${footerHeight}px`
   );
   const rowHeightValue = getComputedStyle(document.documentElement)
     .getPropertyValue("--row-height")
@@ -441,7 +456,10 @@ function updateLayout() {
     ? Number.parseFloat(viewStyles.paddingTop) +
       Number.parseFloat(viewStyles.paddingBottom)
     : 0;
-  const available = Math.max(1, appHeight - headerHeight - paddingY);
+  const available = Math.max(
+    1,
+    appHeight - headerHeight - footerHeight - paddingY
+  );
   const rows = Math.max(1, Math.floor(available / rowHeight));
   layoutState.rows = rows;
   elements.grid.style.setProperty("--rows", rows);
@@ -487,41 +505,33 @@ async function loadWords() {
 
   const proofreadRanges = collectProofreadRanges(stats);
   const isProofreadRow = createRangeChecker(proofreadRanges);
-  const lengthStats = {
-    totalByLength: {},
-    proofreadByLength: {},
-    totalWords: 0,
-    proofreadWords: 0,
-  };
   const entries = [];
   for (let i = 1; i < rows.length; i += 1) {
     const rowIndex = i;
     const word = (rows[i][wordIndex] || "").trim();
-    if (word) {
-      const length = wordLength(word);
-      lengthStats.totalByLength[length] =
-        (lengthStats.totalByLength[length] || 0) + 1;
-      lengthStats.totalWords += 1;
-      const proofread = isProofreadRow ? isProofreadRow(rowIndex) : true;
-      if (proofread) {
-        lengthStats.proofreadByLength[length] =
-          (lengthStats.proofreadByLength[length] || 0) + 1;
-        lengthStats.proofreadWords += 1;
-      }
-      if (CONFIG.proofreadOnly && !proofread) {
-        continue;
-      }
-      const rankRaw = rows[i][indexIndex];
-      const rank = rankRaw && String(rankRaw).trim() ? String(rankRaw).trim() : String(i);
-      entries.push({ rank, word });
+    if (!word) {
+      continue;
     }
+    const length = wordLength(word);
+    const proofread = isProofreadRow ? isProofreadRow(rowIndex) : true;
+    const rankRaw = rows[i][indexIndex];
+    const rank =
+      rankRaw && String(rankRaw).trim() ? String(rankRaw).trim() : String(i);
+    entries.push({
+      rank,
+      word,
+      proofread,
+      length,
+      search: word.toLowerCase(),
+    });
   }
-  return { stats, entries, totalRows: lengthStats.totalWords, lengthStats };
+  return { stats, entries };
 }
 
 async function init() {
   applyTitle();
   initFilters();
+  initSearch();
   updateLayout();
   if (elements.view) {
     elements.view.addEventListener("scroll", onScroll, { passive: true });
@@ -534,12 +544,10 @@ async function init() {
     document.fonts.ready.then(updateLayout).catch(() => null);
   }
   try {
-    const { stats, entries, totalRows, lengthStats } = await loadWords();
+    const { stats, entries } = await loadWords();
     dataState.stats = stats;
-    dataState.totalRows = totalRows;
     dataState.allEntries = entries;
-    dataState.lengthStats = lengthStats;
-    applyFilter(filterState.value);
+    applyFilters();
     updateLayout();
   } catch (error) {
     setStatus("Failed to load word list.", true);
