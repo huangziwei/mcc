@@ -5,9 +5,9 @@ WIP.
 ### Proofreading Progress
 
 <!-- mcc:stats:start -->
-- Rows proofread: 14,804 / 56,992 (26.0%)
-- Columns proofread: 325 / 1,245 (26.1%)
-- Passes: pass 1: 325 cols / 14,804 rows
+- Rows proofread: 15,718 / 56,986 (27.6%)
+- Columns proofread: 345 / 1,245 (27.7%)
+- Passes: pass 1: 345 cols / 15,718 rows
 <!-- mcc:stats:end -->
 
 ### Usage
