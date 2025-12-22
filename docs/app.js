@@ -8,12 +8,20 @@ const elements = {
   grid: document.getElementById("word-grid"),
   status: document.getElementById("status"),
   count: document.getElementById("count"),
-  passes: document.getElementById("passes"),
   view: document.getElementById("word-view"),
   header: document.querySelector(".top"),
+  filterButtons: Array.from(document.querySelectorAll("[data-length-filter]")),
 };
 
 const STATS_PREFIX = "# mcc-stats:";
+const dataState = {
+  stats: null,
+  totalRows: 0,
+  allEntries: [],
+  filteredEntries: [],
+  lengthStats: null,
+};
+const filterState = { value: "all" };
 const layoutState = { rows: 1 };
 const renderState = { entries: [], rendered: 0, chunkSize: 400 };
 let scrollTicking = false;
@@ -25,6 +33,147 @@ function setStatus(message, isError = false) {
 
 function formatNumber(value) {
     return Number(value || 0).toLocaleString("en-US");
+}
+
+function formatPercent(numerator, denominator) {
+  if (!denominator) {
+    return "0.0%";
+  }
+  return `${((numerator / denominator) * 100).toFixed(1)}%`;
+}
+
+function wordLength(word) {
+  return Array.from(word).length;
+}
+
+function parseFilterValue(value) {
+  if (!value || value === "all") {
+    return { mode: "all" };
+  }
+  if (value.endsWith("+")) {
+    const minValue = Number.parseInt(value, 10);
+    if (Number.isFinite(minValue)) {
+      return { mode: "min", value: minValue };
+    }
+  }
+  const exactValue = Number.parseInt(value, 10);
+  if (Number.isFinite(exactValue)) {
+    return { mode: "exact", value: exactValue };
+  }
+  return { mode: "all" };
+}
+
+function formatFilterLabel(value) {
+  if (!value || value === "all") {
+    return "All lengths";
+  }
+  if (value.endsWith("+")) {
+    return `${value} chars`;
+  }
+  return `${value} chars`;
+}
+
+function filterEntries(entries, value) {
+  const parsed = parseFilterValue(value);
+  if (parsed.mode === "all") {
+    return entries;
+  }
+  return entries.filter((entry) => {
+    const length = wordLength(entry.word);
+    if (parsed.mode === "exact") {
+      return length === parsed.value;
+    }
+    return length >= parsed.value;
+  });
+}
+
+function sumCounts(byLength, minValue) {
+  if (!byLength) {
+    return 0;
+  }
+  let total = 0;
+  Object.entries(byLength).forEach(([key, value]) => {
+    const length = Number.parseInt(key, 10);
+    if (!Number.isFinite(length)) {
+      return;
+    }
+    if (minValue === null || length >= minValue) {
+      total += Number(value) || 0;
+    }
+  });
+  return total;
+}
+
+function getCountsForFilter() {
+  const lengthStats = dataState.lengthStats;
+  const parsed = parseFilterValue(filterState.value);
+  if (!lengthStats) {
+    const total = dataState.totalRows || dataState.filteredEntries.length;
+    return { proofread: dataState.filteredEntries.length, total };
+  }
+  if (parsed.mode === "all") {
+    return {
+      proofread: lengthStats.proofreadWords,
+      total: lengthStats.totalWords,
+    };
+  }
+  if (parsed.mode === "exact") {
+    return {
+      proofread: lengthStats.proofreadByLength[parsed.value] || 0,
+      total: lengthStats.totalByLength[parsed.value] || 0,
+    };
+  }
+  if (parsed.mode === "min") {
+    return {
+      proofread: sumCounts(lengthStats.proofreadByLength, parsed.value),
+      total: sumCounts(lengthStats.totalByLength, parsed.value),
+    };
+  }
+  return {
+    proofread: lengthStats.proofreadWords,
+    total: lengthStats.totalWords,
+  };
+}
+
+function updateStatusText() {
+  const base = CONFIG.proofreadOnly ? "Proofread words" : "All words";
+  const label = formatFilterLabel(filterState.value);
+  setStatus(`${base} • ${label}`);
+}
+
+function updateFilterButtons() {
+  elements.filterButtons.forEach((button) => {
+    const isActive = button.dataset.lengthFilter === filterState.value;
+    button.classList.toggle("is-active", isActive);
+    button.setAttribute("aria-pressed", isActive ? "true" : "false");
+  });
+}
+
+function applyFilter(value) {
+  filterState.value = value || "all";
+  dataState.filteredEntries = filterEntries(
+    dataState.allEntries,
+    filterState.value
+  );
+  resetRender(dataState.filteredEntries);
+  updateMeta();
+  updateStatusText();
+  updateFilterButtons();
+}
+
+function initFilters() {
+  if (!elements.filterButtons.length) {
+    return;
+  }
+  elements.filterButtons.forEach((button) => {
+    button.addEventListener("click", () => {
+      applyFilter(button.dataset.lengthFilter);
+    });
+  });
+  const active = elements.filterButtons.find((button) =>
+    button.classList.contains("is-active")
+  );
+  filterState.value = active ? active.dataset.lengthFilter : "all";
 }
 
 function parseCsv(text) {
@@ -146,20 +295,12 @@ function createRangeChecker(ranges) {
     };
 }
 
-function updateMeta(stats, shownCount, totalRows) {
-    if (!stats || !stats.rows) {
-        elements.count.textContent = `Rows: ${formatNumber(totalRows)}`;
-        elements.passes.textContent = "";
-        return;
-    }
-    const proofread = stats.rows.proofread || shownCount;
-    const total = stats.rows.total || totalRows;
-    elements.count.textContent = `Proofread rows: ${formatNumber(proofread)} / ${formatNumber(total)}`;
-    const passes = stats.rows.passes || {};
-    const passEntries = Object.entries(passes).sort((a, b) => Number(a[0]) - Number(b[0]));
-    elements.passes.textContent = passEntries.length
-        ? `Passes: ${passEntries.map(([pass, count]) => `pass ${pass}: ${formatNumber(count)}`).join(", ")}`
-        : "";
+function updateMeta() {
+  const { proofread, total } = getCountsForFilter();
+  elements.count.textContent = `Proofread: ${formatPercent(
+    proofread,
+    total
+  )} (${formatNumber(proofread)} / ${formatNumber(total)})`;
 }
 
 function setChunkSize() {
@@ -247,6 +388,9 @@ function resetRender(entries) {
   renderState.rendered = 0;
   elements.grid.textContent = "";
   elements.grid.classList.remove("loaded");
+  if (elements.view) {
+    elements.view.scrollLeft = 0;
+  }
   setChunkSize();
   renderNextChunk();
   fillViewport();
@@ -319,25 +463,42 @@ async function loadWords() {
   }
 
     const proofreadRanges = collectProofreadRanges(stats);
-    const isProofreadRow = CONFIG.proofreadOnly ? createRangeChecker(proofreadRanges) : null;
+    const isProofreadRow = createRangeChecker(proofreadRanges);
+  const lengthStats = {
+    totalByLength: {},
+    proofreadByLength: {},
+    totalWords: 0,
+    proofreadWords: 0,
+  };
   const entries = [];
   for (let i = 1; i < rows.length; i += 1) {
     const rowIndex = i;
-    if (isProofreadRow && !isProofreadRow(rowIndex)) {
-      continue;
-    }
     const word = (rows[i][wordIndex] || "").trim();
     if (word) {
+      const length = wordLength(word);
+      lengthStats.totalByLength[length] =
+        (lengthStats.totalByLength[length] || 0) + 1;
+      lengthStats.totalWords += 1;
+      const proofread = isProofreadRow ? isProofreadRow(rowIndex) : true;
+      if (proofread) {
+        lengthStats.proofreadByLength[length] =
+          (lengthStats.proofreadByLength[length] || 0) + 1;
+        lengthStats.proofreadWords += 1;
+      }
+      if (CONFIG.proofreadOnly && !proofread) {
+        continue;
+      }
       const rankRaw = rows[i][indexIndex];
       const rank = rankRaw && String(rankRaw).trim() ? String(rankRaw).trim() : String(i);
       entries.push({ rank, word });
     }
   }
-  return { stats, entries, totalRows: rows.length - 1 };
+  return { stats, entries, totalRows: lengthStats.totalWords, lengthStats };
 }
 
 async function init() {
     applyTitle();
+  initFilters();
   updateLayout();
   if (elements.view) {
     elements.view.addEventListener("scroll", onScroll, { passive: true });
@@ -350,15 +511,16 @@ async function init() {
         document.fonts.ready.then(updateLayout).catch(() => null);
     }
     try {
-    const { stats, entries, totalRows } = await loadWords();
-    resetRender(entries);
+    const { stats, entries, totalRows, lengthStats } = await loadWords();
+    dataState.stats = stats;
+    dataState.totalRows = totalRows;
+    dataState.allEntries = entries;
+    dataState.lengthStats = lengthStats;
+    applyFilter(filterState.value);
     updateLayout();
-    updateMeta(stats, entries.length, totalRows);
-    setStatus(CONFIG.proofreadOnly ? "Showing proofread words" : "Showing all words");
     } catch (error) {
         setStatus("Failed to load word list.", true);
         elements.count.textContent = "";
-        elements.passes.textContent = "";
     }
 }
 
