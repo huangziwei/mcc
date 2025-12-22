@@ -11,7 +11,7 @@
   --column-gap: clamp(20px, 3vw, 40px);
   --pad-x: clamp(20px, 4vw, 56px);
   --pad-y: clamp(16px, 3vw, 40px);
-  --app-height: 100vh;
+  --app-height: 40vh;
   --header-height: 0px;
   --footer-height: 0px;
 }

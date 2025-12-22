@@ -22,7 +22,7 @@ _INDEX_TEMPLATE = """<!DOCTYPE html>
       href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;600&family=Noto+Serif+SC:wght@400;600&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="styles.css?v=11" />
+    <link rel="stylesheet" href="styles.css?v=13" />
   </head>
   <body>
     <header class="top">
@@ -67,7 +67,7 @@ _INDEX_TEMPLATE = """<!DOCTYPE html>
       </div>
     </footer>
     <div class="scroll-hint" id="scroll-hint">Scroll horizontally &rarr;</div>
-    <script src="app.js?v=11"></script>
+    <script src="app.js?v=13"></script>
   </body>
 </html>
 """
@@ -837,10 +837,29 @@ function onScroll() {
   });
 }
 
+function getRowHeight() {
+  if (!document.body) {
+    return 32;
+  }
+  const probe = document.createElement("div");
+  probe.style.position = "absolute";
+  probe.style.visibility = "hidden";
+  probe.style.height = "var(--row-height)";
+  probe.style.width = "1px";
+  probe.style.pointerEvents = "none";
+  document.body.appendChild(probe);
+  const height = probe.getBoundingClientRect().height || probe.offsetHeight || 0;
+  probe.remove();
+  return height || 32;
+}
+
 function updateLayout() {
-  const appHeight = window.visualViewport
+  const viewportHeight =
+    document.documentElement.clientHeight || window.innerHeight;
+  const visualHeight = window.visualViewport
     ? window.visualViewport.height
-    : document.documentElement.clientHeight || window.innerHeight;
+    : viewportHeight;
+  const appHeight = Math.min(visualHeight, viewportHeight);
   document.documentElement.style.setProperty("--app-height", `${appHeight}px`);
   const headerHeight = elements.header
     ? elements.header.getBoundingClientRect().height
@@ -856,10 +875,7 @@ function updateLayout() {
     "--footer-height",
     `${footerHeight}px`
   );
-  const rowHeightValue = getComputedStyle(document.documentElement)
-    .getPropertyValue("--row-height")
-    .trim();
-  const rowHeight = Number.parseFloat(rowHeightValue) || 32;
+  const rowHeight = getRowHeight();
   const viewStyles = elements.view ? getComputedStyle(elements.view) : null;
   const paddingY = viewStyles
     ? Number.parseFloat(viewStyles.paddingTop) +
