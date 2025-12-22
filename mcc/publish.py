@@ -22,40 +22,40 @@ _INDEX_TEMPLATE = """<!DOCTYPE html>
             href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;600&family=Noto+Serif+SC:wght@400;600&display=swap"
             rel="stylesheet"
         />
-        <link rel="stylesheet" href="styles.css?v=14" />
+        <link rel="stylesheet" href="styles.css?v=16" />
     </head>
     <body>
         <header class="top">
             <div class="title">
                 <div class="title-main">__TITLE__</div>
-                <div class="search">
-                    <label class="sr-only" for="search-input">Search words</label>
-                    <input
-                        id="search-input"
-                        class="search-input"
-                        type="search"
-                        placeholder="Search words"
-                        autocomplete="off"
-                        spellcheck="false"
-                    />
+                <div class="title-tools">
+                    <div class="search">
+                        <label class="sr-only" for="search-input">Search words</label>
+                        <input
+                            id="search-input"
+                            class="search-input"
+                            type="search"
+                            placeholder="Search words"
+                            autocomplete="off"
+                            spellcheck="false"
+                        />
+                    </div>
+                    <div class="meta">
+                        <div id="count" class="count"></div>
+                    </div>
                 </div>
             </div>
             <div class="filters">
                 <div class="filter-label">Length</div>
                 <div class="filter-group" role="group" aria-label="Filter by word length">
-                    <button class="filter-btn is-active" type="button" data-length-filter="all">
-                        All
-                    </button>
+                    <button class="filter-btn is-active" type="button" data-length-filter="all">All</button>
                     <button class="filter-btn" type="button" data-length-filter="1">1</button>
                     <button class="filter-btn" type="button" data-length-filter="2">2</button>
                     <button class="filter-btn" type="button" data-length-filter="3">3</button>
                     <button class="filter-btn" type="button" data-length-filter="4+">4+</button>
                 </div>
             </div>
-            <div class="meta">
-                <div id="status" class="status">Loading...</div>
-                <div id="count" class="count"></div>
-            </div>
+            <div id="status" class="status sr-only">Loading...</div>
         </header>
         <main id="word-view" class="word-view">
             <div id="word-grid" class="word-grid" aria-live="polite"></div>
@@ -66,7 +66,7 @@ _INDEX_TEMPLATE = """<!DOCTYPE html>
                 ISBN 978-7-100-20011-0.
             </div>
         </footer>
-        <script src="app.js?v=14"></script>
+        <script src="app.js?v=16"></script>
     </body>
 </html>"""
 
@@ -143,7 +143,11 @@ body::before {
   gap: 4px;
 }
 
-.search {
+.title-tools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
   margin-top: 6px;
 }
 
@@ -195,17 +199,18 @@ body::before {
 
 .meta {
   display: flex;
-  flex-direction: column;
-  gap: 6px;
-  text-align: right;
-  font-size: 13px;
+  align-items: center;
+  font-size: 12px;
   color: var(--muted);
+  white-space: nowrap;
 }
 
 .filters {
   display: flex;
   flex-direction: column;
   gap: 8px;
+  align-items: flex-end;
+  text-align: right;
 }
 
 .filter-label {
@@ -219,6 +224,7 @@ body::before {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
+  justify-content: flex-end;
 }
 
 .filter-btn {
@@ -365,12 +371,19 @@ body::before {
     align-items: flex-start;
   }
 
-  .meta {
-    text-align: left;
+  .title-tools {
+    flex-direction: column;
+    align-items: flex-start;
   }
 
   .filters {
     width: 100%;
+    align-items: flex-start;
+    text-align: left;
+  }
+
+  .filter-group {
+    justify-content: flex-start;
   }
 
   .search-input {
