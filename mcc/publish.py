@@ -52,7 +52,8 @@ _INDEX_TEMPLATE = """<!DOCTYPE html>
                     <button class="filter-btn" type="button" data-length-filter="1">1</button>
                     <button class="filter-btn" type="button" data-length-filter="2">2</button>
                     <button class="filter-btn" type="button" data-length-filter="3">3</button>
-                    <button class="filter-btn" type="button" data-length-filter="4+">4+</button>
+                    <button class="filter-btn" type="button" data-length-filter="4">4</button>
+                    <button class="filter-btn" type="button" data-length-filter="5+">5+</button>
                 </div>
             </div>
             <div id="status" class="status sr-only">Loading...</div>
