@@ -163,6 +163,7 @@ function applyFilters() {
   updateMeta();
   updateStatusText();
   updateFilterButtons();
+  updateLayout();
 }
 
 function applyFilter(value) {
@@ -431,7 +432,9 @@ function onScroll() {
 }
 
 function updateLayout() {
-  const appHeight = window.innerHeight;
+  const appHeight = window.visualViewport
+    ? window.visualViewport.height
+    : document.documentElement.clientHeight || window.innerHeight;
   document.documentElement.style.setProperty("--app-height", `${appHeight}px`);
   const headerHeight = elements.header
     ? elements.header.getBoundingClientRect().height
@@ -456,16 +459,13 @@ function updateLayout() {
     ? Number.parseFloat(viewStyles.paddingTop) +
       Number.parseFloat(viewStyles.paddingBottom)
     : 0;
-  const available = Math.max(
-    1,
-    appHeight - headerHeight - footerHeight - paddingY
-  );
+  const viewHeight = elements.view
+    ? elements.view.clientHeight
+    : Math.max(1, appHeight - headerHeight - footerHeight);
+  const available = Math.max(1, viewHeight - paddingY);
   const rows = Math.max(1, Math.floor(available / rowHeight));
   layoutState.rows = rows;
   elements.grid.style.setProperty("--rows", rows);
-  if (elements.view) {
-    elements.view.style.height = `${rows * rowHeight + paddingY}px`;
-  }
   setChunkSize();
   fillViewport();
 }
