@@ -10,7 +10,7 @@
             href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;600&family=Noto+Serif+SC:wght@400;600&display=swap"
             rel="stylesheet"
         />
-        <link rel="stylesheet" href="styles.css?v=20" />
+        <link rel="stylesheet" href="styles.css?v=26" />
     </head>
     <body>
         <header class="top">
@@ -34,14 +34,24 @@
                 </div>
             </div>
             <div class="filters">
-                <div class="filter-label">Length</div>
-                <div class="filter-group" role="group" aria-label="Filter by word length">
-                    <button class="filter-btn is-active" type="button" data-length-filter="all">All</button>
-                    <button class="filter-btn" type="button" data-length-filter="1">1</button>
-                    <button class="filter-btn" type="button" data-length-filter="2">2</button>
-                    <button class="filter-btn" type="button" data-length-filter="3">3</button>
-                    <button class="filter-btn" type="button" data-length-filter="4">4</button>
-                    <button class="filter-btn" type="button" data-length-filter="5+">5+</button>
+                <div class="filter-controls">
+                    <div class="filter-label">Length</div>
+                    <div class="filter-group" role="group" aria-label="Filter by word length">
+                        <button class="filter-btn is-active" type="button" data-length-filter="all">All</button>
+                        <button class="filter-btn" type="button" data-length-filter="1">1</button>
+                        <button class="filter-btn" type="button" data-length-filter="2">2</button>
+                        <button class="filter-btn" type="button" data-length-filter="3">3</button>
+                        <button class="filter-btn" type="button" data-length-filter="4">4</button>
+                        <button class="filter-btn" type="button" data-length-filter="5+">5+</button>
+                    </div>
+                    <button
+                        id="pinyin-toggle"
+                        class="filter-btn toggle-btn"
+                        type="button"
+                        aria-pressed="false"
+                    >
+                        Pinyin
+                    </button>
                 </div>
             </div>
             <div id="status" class="status sr-only">Loading...</div>
@@ -55,6 +65,6 @@
                 978-7-100-20011-0.
             </div>
         </footer>
-        <script src="app.js?v=20"></script>
+        <script src="app.js?v=26"></script>
     </body>
 </html>

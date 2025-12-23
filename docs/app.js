@@ -9,6 +9,7 @@ const elements = {
     status: document.getElementById("status"),
     count: document.getElementById("count"),
     searchInput: document.getElementById("search-input"),
+    pinyinToggle: document.getElementById("pinyin-toggle"),
     view: document.getElementById("word-view"),
     header: document.querySelector(".top"),
     footer: document.querySelector(".footer"),
@@ -37,6 +38,7 @@ const dataState = {
 };
 const filterState = { value: "all" };
 const searchState = { query: "", timer: null };
+const pinyinState = { visible: false };
 const layoutState = { rows: 1 };
 const renderState = { entries: [], rendered: 0, chunkSize: 400 };
 let scrollTicking = false;
@@ -64,18 +66,38 @@ function scheduleFilterUpdate() {
     }, 120);
 }
 
-function appendWordText(target, word) {
-    if (word.endsWith("儿") && !ERHUA_EXCEPTIONS.has(word)) {
-        const prefix = word.slice(0, -1);
-        target.textContent = "";
-        target.appendChild(document.createTextNode(prefix));
-        const small = document.createElement("small");
-        small.className = "erhua";
-        small.textContent = "儿";
-        target.appendChild(small);
-        return;
+function parsePinyinTokens(value) {
+    const raw = String(value || "").trim();
+    if (!raw) {
+        return [];
     }
-    target.textContent = word;
+    return raw.split(/\s+/);
+}
+
+function appendWordRuby(target, entry) {
+    target.textContent = "";
+    const ruby = document.createElement("ruby");
+    ruby.className = "word-ruby";
+    const chars = Array.from(entry.word);
+    const tokens = entry.pinyinTokens || [];
+    const useErhua =
+        entry.word.endsWith("儿") && !ERHUA_EXCEPTIONS.has(entry.word);
+    const lastIndex = chars.length - 1;
+    chars.forEach((char, index) => {
+        if (useErhua && index === lastIndex) {
+            const span = document.createElement("span");
+            span.className = "erhua";
+            span.textContent = char;
+            ruby.appendChild(span);
+        } else {
+            ruby.appendChild(document.createTextNode(char));
+        }
+        const rt = document.createElement("rt");
+        const token = tokens[index];
+        rt.textContent = token ? token : "\u00a0";
+        ruby.appendChild(rt);
+    });
+    target.appendChild(ruby);
 }
 
 function formatPercent(numerator, denominator) {
@@ -210,6 +232,30 @@ function initSearch() {
         searchState.query = next;
         scheduleFilterUpdate();
     });
+}
+
+function updatePinyinToggle() {
+    if (!elements.pinyinToggle || !elements.grid) {
+        return;
+    }
+    const isActive = pinyinState.visible;
+    elements.pinyinToggle.classList.toggle("is-active", isActive);
+    elements.pinyinToggle.setAttribute(
+        "aria-pressed",
+        isActive ? "true" : "false"
+    );
+    elements.grid.classList.toggle("show-pinyin", isActive);
+}
+
+function initPinyinToggle() {
+    if (!elements.pinyinToggle) {
+        return;
+    }
+    elements.pinyinToggle.addEventListener("click", () => {
+        pinyinState.visible = !pinyinState.visible;
+        updatePinyinToggle();
+    });
+    updatePinyinToggle();
 }
 
 function parseCsv(text) {
@@ -364,7 +410,7 @@ function renderNextChunk() {
         indexSpan.textContent = entry.rank;
         const textSpan = document.createElement("span");
         textSpan.className = "word-text";
-        appendWordText(textSpan, entry.word);
+        appendWordRuby(textSpan, entry);
         div.appendChild(indexSpan);
         div.appendChild(textSpan);
         fragment.appendChild(div);
@@ -548,6 +594,10 @@ async function loadWords() {
     if (wordIndex === -1) {
         wordIndex = 1;
     }
+    let pinyinIndex = header.indexOf("pinyin");
+    if (pinyinIndex === -1) {
+        pinyinIndex = null;
+    }
 
     const proofreadRanges = collectProofreadRanges(stats);
     const isProofreadRow = createRangeChecker(proofreadRanges);
@@ -563,11 +613,18 @@ async function loadWords() {
         const rankRaw = rows[i][indexIndex];
         const rank =
             rankRaw && String(rankRaw).trim() ? String(rankRaw).trim() : String(i);
+        const pinyinRaw =
+            pinyinIndex !== null && pinyinIndex < rows[i].length
+                ? rows[i][pinyinIndex]
+                : "";
+        const pinyinTokens = parsePinyinTokens(pinyinRaw);
         entries.push({
             rank,
             word,
             proofread,
             length,
+            pinyin: pinyinRaw,
+            pinyinTokens,
             search: word.toLowerCase(),
         });
     }
@@ -577,6 +634,7 @@ async function loadWords() {
 async function init() {
     applyTitle();
     initFilters();
+    initPinyinToggle();
     initSearch();
     updateLayout();
     if (elements.view) {

@@ -22,7 +22,7 @@ _INDEX_TEMPLATE = """<!DOCTYPE html>
             href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;600&family=Noto+Serif+SC:wght@400;600&display=swap"
             rel="stylesheet"
         />
-        <link rel="stylesheet" href="styles.css?v=20" />
+        <link rel="stylesheet" href="styles.css?v=26" />
     </head>
     <body>
         <header class="top">
@@ -46,14 +46,24 @@ _INDEX_TEMPLATE = """<!DOCTYPE html>
                 </div>
             </div>
             <div class="filters">
-                <div class="filter-label">Length</div>
-                <div class="filter-group" role="group" aria-label="Filter by word length">
-                    <button class="filter-btn is-active" type="button" data-length-filter="all">All</button>
-                    <button class="filter-btn" type="button" data-length-filter="1">1</button>
-                    <button class="filter-btn" type="button" data-length-filter="2">2</button>
-                    <button class="filter-btn" type="button" data-length-filter="3">3</button>
-                    <button class="filter-btn" type="button" data-length-filter="4">4</button>
-                    <button class="filter-btn" type="button" data-length-filter="5+">5+</button>
+                <div class="filter-controls">
+                    <div class="filter-label">Length</div>
+                    <div class="filter-group" role="group" aria-label="Filter by word length">
+                        <button class="filter-btn is-active" type="button" data-length-filter="all">All</button>
+                        <button class="filter-btn" type="button" data-length-filter="1">1</button>
+                        <button class="filter-btn" type="button" data-length-filter="2">2</button>
+                        <button class="filter-btn" type="button" data-length-filter="3">3</button>
+                        <button class="filter-btn" type="button" data-length-filter="4">4</button>
+                        <button class="filter-btn" type="button" data-length-filter="5+">5+</button>
+                    </div>
+                    <button
+                        id="pinyin-toggle"
+                        class="filter-btn toggle-btn"
+                        type="button"
+                        aria-pressed="false"
+                    >
+                        Pinyin
+                    </button>
                 </div>
             </div>
             <div id="status" class="status sr-only">Loading...</div>
@@ -67,7 +77,7 @@ _INDEX_TEMPLATE = """<!DOCTYPE html>
                 ISBN 978-7-100-20011-0.
             </div>
         </footer>
-        <script src="app.js?v=20"></script>
+        <script src="app.js?v=26"></script>
     </body>
 </html>"""
 
@@ -219,6 +229,15 @@ body::before {
   text-transform: uppercase;
   letter-spacing: 0.16em;
   color: var(--muted);
+  line-height: 1;
+}
+
+.filter-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  justify-content: flex-end;
 }
 
 .filter-group {
@@ -255,6 +274,12 @@ body::before {
   color: #fff;
   border-color: var(--ink);
   box-shadow: 0 6px 16px var(--shadow);
+}
+
+.toggle-btn.is-active {
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
 }
 
 .status {
@@ -303,7 +328,7 @@ body::before {
 
 .word {
   display: inline-flex;
-  align-items: center;
+  align-items: baseline;
   gap: 10px;
   height: var(--row-height);
   padding-right: 4px;
@@ -324,10 +349,38 @@ body::before {
 }
 
 .word-text {
+  display: inline-block;
   font-family: "Noto Serif SC", serif;
   font-size: var(--word-size);
   line-height: 1;
   letter-spacing: 0.08em;
+}
+
+.word-ruby {
+  font-size: inherit;
+  line-height: 1;
+  letter-spacing: inherit;
+  ruby-align: center;
+  ruby-position: over;
+}
+
+.word-ruby rt {
+  font-family: "IBM Plex Sans", system-ui, sans-serif;
+  font-size: 0.4em;
+  line-height: 1;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+  opacity: 0;
+  transition: opacity 0.2s ease;
+  transform: translateY(0.55em);
+}
+
+.word-ruby rt:empty::before {
+  content: " ";
+}
+
+.word-grid.show-pinyin rt {
+  opacity: 1;
 }
 
 .word-text .erhua {
@@ -383,6 +436,10 @@ body::before {
     text-align: left;
   }
 
+  .filter-controls {
+    justify-content: flex-start;
+  }
+
   .filter-group {
     justify-content: flex-start;
   }
@@ -414,6 +471,7 @@ const elements = {
     status: document.getElementById("status"),
     count: document.getElementById("count"),
     searchInput: document.getElementById("search-input"),
+    pinyinToggle: document.getElementById("pinyin-toggle"),
     view: document.getElementById("word-view"),
     header: document.querySelector(".top"),
     footer: document.querySelector(".footer"),
@@ -442,6 +500,7 @@ const dataState = {
 };
 const filterState = { value: "all" };
 const searchState = { query: "", timer: null };
+const pinyinState = { visible: false };
 const layoutState = { rows: 1 };
 const renderState = { entries: [], rendered: 0, chunkSize: 400 };
 let scrollTicking = false;
@@ -469,18 +528,38 @@ function scheduleFilterUpdate() {
     }, 120);
 }
 
-function appendWordText(target, word) {
-    if (word.endsWith("儿") && !ERHUA_EXCEPTIONS.has(word)) {
-        const prefix = word.slice(0, -1);
-        target.textContent = "";
-        target.appendChild(document.createTextNode(prefix));
-        const small = document.createElement("small");
-        small.className = "erhua";
-        small.textContent = "儿";
-        target.appendChild(small);
-        return;
+function parsePinyinTokens(value) {
+    const raw = String(value || "").trim();
+    if (!raw) {
+        return [];
     }
-    target.textContent = word;
+    return raw.split(/\\s+/);
+}
+
+function appendWordRuby(target, entry) {
+    target.textContent = "";
+    const ruby = document.createElement("ruby");
+    ruby.className = "word-ruby";
+    const chars = Array.from(entry.word);
+    const tokens = entry.pinyinTokens || [];
+    const useErhua =
+        entry.word.endsWith("儿") && !ERHUA_EXCEPTIONS.has(entry.word);
+    const lastIndex = chars.length - 1;
+    chars.forEach((char, index) => {
+        if (useErhua && index === lastIndex) {
+            const span = document.createElement("span");
+            span.className = "erhua";
+            span.textContent = char;
+            ruby.appendChild(span);
+        } else {
+            ruby.appendChild(document.createTextNode(char));
+        }
+        const rt = document.createElement("rt");
+        const token = tokens[index];
+        rt.textContent = token ? token : "\\u00a0";
+        ruby.appendChild(rt);
+    });
+    target.appendChild(ruby);
 }
 
 function formatPercent(numerator, denominator) {
@@ -615,6 +694,30 @@ function initSearch() {
         searchState.query = next;
         scheduleFilterUpdate();
     });
+}
+
+function updatePinyinToggle() {
+    if (!elements.pinyinToggle || !elements.grid) {
+        return;
+    }
+    const isActive = pinyinState.visible;
+    elements.pinyinToggle.classList.toggle("is-active", isActive);
+    elements.pinyinToggle.setAttribute(
+        "aria-pressed",
+        isActive ? "true" : "false"
+    );
+    elements.grid.classList.toggle("show-pinyin", isActive);
+}
+
+function initPinyinToggle() {
+    if (!elements.pinyinToggle) {
+        return;
+    }
+    elements.pinyinToggle.addEventListener("click", () => {
+        pinyinState.visible = !pinyinState.visible;
+        updatePinyinToggle();
+    });
+    updatePinyinToggle();
 }
 
 function parseCsv(text) {
@@ -769,7 +872,7 @@ function renderNextChunk() {
         indexSpan.textContent = entry.rank;
         const textSpan = document.createElement("span");
         textSpan.className = "word-text";
-        appendWordText(textSpan, entry.word);
+        appendWordRuby(textSpan, entry);
         div.appendChild(indexSpan);
         div.appendChild(textSpan);
         fragment.appendChild(div);
@@ -953,6 +1056,10 @@ async function loadWords() {
     if (wordIndex === -1) {
         wordIndex = 1;
     }
+    let pinyinIndex = header.indexOf("pinyin");
+    if (pinyinIndex === -1) {
+        pinyinIndex = null;
+    }
 
     const proofreadRanges = collectProofreadRanges(stats);
     const isProofreadRow = createRangeChecker(proofreadRanges);
@@ -968,11 +1075,18 @@ async function loadWords() {
         const rankRaw = rows[i][indexIndex];
         const rank =
             rankRaw && String(rankRaw).trim() ? String(rankRaw).trim() : String(i);
+        const pinyinRaw =
+            pinyinIndex !== null && pinyinIndex < rows[i].length
+                ? rows[i][pinyinIndex]
+                : "";
+        const pinyinTokens = parsePinyinTokens(pinyinRaw);
         entries.push({
             rank,
             word,
             proofread,
             length,
+            pinyin: pinyinRaw,
+            pinyinTokens,
             search: word.toLowerCase(),
         });
     }
@@ -982,6 +1096,7 @@ async function loadWords() {
 async function init() {
     applyTitle();
     initFilters();
+    initPinyinToggle();
     initSearch();
     updateLayout();
     if (elements.view) {
