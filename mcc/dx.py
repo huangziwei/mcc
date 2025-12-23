@@ -196,16 +196,31 @@ def check_proofread_index_continuity(
 
 
 def find_duplicate_words(
-    merged_path: Path, console: Console | None = None
+    merged_path: Path,
+    csv_dir: Path | None = None,
+    console: Console | None = None,
 ) -> int:
     if console is None:
         console = Console(stderr=True)
     merged = load_merged_csv(merged_path)
+    row_sources = build_row_sources(csv_dir) if csv_dir is not None else None
+    if row_sources is not None and len(row_sources) - 1 != len(merged.rows):
+        console.print(
+            "Warning: source CSV row count does not match merged row count."
+        )
+    proofread_rows = build_proofread_row_set(merged.stats)
+    if not proofread_rows:
+        console.print("No proofread rows found in stats header.")
+        return 0
     word_col = find_column(merged.header, "word", fallback=1)
     index_col = find_column(merged.header, "index", fallback=0)
 
-    word_map: dict[str, list[str]] = {}
+    word_map: dict[str, list[tuple[str, str]]] = {}
+    checked = 0
     for row_num, row in enumerate(merged.rows, start=1):
+        if row_num not in proofread_rows:
+            continue
+        checked += 1
         word = row[word_col].strip() if word_col < len(row) else ""
         if not word:
             continue
@@ -214,15 +229,20 @@ def find_duplicate_words(
             index_value = row[index_col].strip()
         if not index_value:
             index_value = str(row_num)
-        word_map.setdefault(word, []).append(index_value)
+        source = format_row_source(row_sources, row_num)
+        word_map.setdefault(word, []).append((index_value, source))
 
     duplicates = {word: refs for word, refs in word_map.items() if len(refs) > 1}
     if not duplicates:
-        console.print("No duplicate words found.")
+        console.print(f"No duplicate words found in {checked} proofread rows.")
         return 0
 
+    console.print(f"Proofread rows checked: {checked}")
     console.print(f"Duplicate words: {len(duplicates)}")
     for word in sorted(duplicates.keys(), key=lambda value: (-len(duplicates[value]), value)):
-        refs = ", ".join(duplicates[word])
+        refs = ", ".join(
+            f"{source} (index {index_value})"
+            for index_value, source in duplicates[word]
+        )
         console.print(f"- {word} ({len(duplicates[word])}): {refs}")
     return len(duplicates)

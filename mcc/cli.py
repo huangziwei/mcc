@@ -280,6 +280,13 @@ def build_parser() -> argparse.ArgumentParser:
         type=Path,
         help="Merged CSV path",
     )
+    dx_dup_parser.add_argument(
+        "--csv",
+        dest="csv_dir",
+        default=repo_root / "post" / "csv",
+        type=Path,
+        help="Source CSV directory for page/col lookup",
+    )
     dx_dup_parser.set_defaults(func=cmd_dx_duplicates)
 
     return parser
@@ -372,7 +379,7 @@ def cmd_dx_index(args: argparse.Namespace) -> None:
 
 
 def cmd_dx_duplicates(args: argparse.Namespace) -> None:
-    find_duplicate_words(args.merged)
+    find_duplicate_words(args.merged, csv_dir=args.csv_dir)
 
 
 def main() -> int:
