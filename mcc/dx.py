@@ -214,8 +214,9 @@ def find_duplicate_words(
         return 0
     word_col = find_column(merged.header, "word", fallback=1)
     index_col = find_column(merged.header, "index", fallback=0)
+    pinyin_col = find_column(merged.header, "pinyin", fallback=None)
 
-    word_map: dict[str, list[tuple[str, str]]] = {}
+    word_map: dict[tuple[str, str], list[tuple[str, str]]] = {}
     checked = 0
     for row_num, row in enumerate(merged.rows, start=1):
         if row_num not in proofread_rows:
@@ -224,25 +225,33 @@ def find_duplicate_words(
         word = row[word_col].strip() if word_col < len(row) else ""
         if not word:
             continue
+        pinyin_raw = row[pinyin_col] if pinyin_col < len(row) else ""
+        pinyin = " ".join(str(pinyin_raw).strip().split())
         index_value = ""
         if index_col < len(row):
             index_value = row[index_col].strip()
         if not index_value:
             index_value = str(row_num)
         source = format_row_source(row_sources, row_num)
-        word_map.setdefault(word, []).append((index_value, source))
+        word_map.setdefault((word, pinyin), []).append((index_value, source))
 
-    duplicates = {word: refs for word, refs in word_map.items() if len(refs) > 1}
+    duplicates = {
+        key: refs for key, refs in word_map.items() if len(refs) > 1
+    }
     if not duplicates:
         console.print(f"No duplicate words found in {checked} proofread rows.")
         return 0
 
     console.print(f"Proofread rows checked: {checked}")
-    console.print(f"Duplicate words: {len(duplicates)}")
-    for word in sorted(duplicates.keys(), key=lambda value: (-len(duplicates[value]), value)):
+    console.print(f"Duplicate word+pinyin pairs: {len(duplicates)}")
+    for key in sorted(
+        duplicates.keys(),
+        key=lambda value: (-len(duplicates[value]), value),
+    ):
+        word, pinyin = key
         refs = ", ".join(
             f"{source} (index {index_value})"
-            for index_value, source in duplicates[word]
+            for index_value, source in duplicates[key]
         )
-        console.print(f"- {word} ({len(duplicates[word])}): {refs}")
+        console.print(f"- {word} [{pinyin}] ({len(duplicates[key])}): {refs}")
     return len(duplicates)
