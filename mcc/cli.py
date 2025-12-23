@@ -8,6 +8,7 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
+from mcc.dx import check_proofread_index_continuity, find_duplicate_words
 from mcc.merge import merge_csv
 from mcc.publish import DEFAULT_CSV_URL, DEFAULT_TITLE, publish_site
 from mcc.preprocess.ocr import ocr_columns
@@ -21,6 +22,9 @@ def build_parser() -> argparse.ArgumentParser:
     repo_root = Path(__file__).resolve().parents[1]
     default_pdf = repo_root / "raw" / "modern-chinese-common-words.pdf"
     default_out = repo_root / "pre" / "pages"
+    default_merged = (
+        repo_root / "post" / "merged" / "modern-chinese-common-words.csv"
+    )
     parser = argparse.ArgumentParser(prog="mcc")
     subparsers = parser.add_subparsers(dest="command", required=True)
 
@@ -244,6 +248,40 @@ def build_parser() -> argparse.ArgumentParser:
     )
     stats_parser.set_defaults(func=cmd_stats)
 
+    dx_parser = subparsers.add_parser("dx", help="Diagnostics for merged CSV")
+    dx_subparsers = dx_parser.add_subparsers(dest="dx_command", required=True)
+
+    dx_index_parser = dx_subparsers.add_parser(
+        "index", help="Check proofread index continuity"
+    )
+    dx_index_parser.add_argument(
+        "--merged",
+        default=default_merged,
+        type=Path,
+        help="Merged CSV path",
+    )
+    dx_index_parser.add_argument(
+        "--csv",
+        dest="csv_dir",
+        default=repo_root / "post" / "csv",
+        type=Path,
+        help="Source CSV directory for page/col lookup",
+    )
+    dx_index_parser.set_defaults(func=cmd_dx_index)
+
+    dx_dup_parser = dx_subparsers.add_parser(
+        "duplicates",
+        aliases=["dupicates"],
+        help="List duplicate words",
+    )
+    dx_dup_parser.add_argument(
+        "--merged",
+        default=default_merged,
+        type=Path,
+        help="Merged CSV path",
+    )
+    dx_dup_parser.set_defaults(func=cmd_dx_duplicates)
+
     return parser
 
 
@@ -327,6 +365,14 @@ def cmd_stats(args: argparse.Namespace) -> None:
     print("\n".join(lines))
     if args.readme is not None:
         update_readme_stats(args.readme, stats)
+
+
+def cmd_dx_index(args: argparse.Namespace) -> None:
+    check_proofread_index_continuity(args.merged, csv_dir=args.csv_dir)
+
+
+def cmd_dx_duplicates(args: argparse.Namespace) -> None:
+    find_duplicate_words(args.merged)
 
 
 def main() -> int:
