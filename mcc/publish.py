@@ -22,7 +22,7 @@ _INDEX_TEMPLATE = """<!DOCTYPE html>
             href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;600&family=Noto+Serif+SC:wght@400;600&display=swap"
             rel="stylesheet"
         />
-        <link rel="stylesheet" href="styles.css?v=16" />
+        <link rel="stylesheet" href="styles.css?v=20" />
     </head>
     <body>
         <header class="top">
@@ -67,7 +67,7 @@ _INDEX_TEMPLATE = """<!DOCTYPE html>
                 ISBN 978-7-100-20011-0.
             </div>
         </footer>
-        <script src="app.js?v=16"></script>
+        <script src="app.js?v=20"></script>
     </body>
 </html>"""
 
@@ -849,6 +849,14 @@ function onScroll() {
 }
 
 function getRowHeight() {
+    if (elements.grid) {
+        const gridStyles = getComputedStyle(elements.grid);
+        const autoRows = gridStyles.gridAutoRows;
+        const parsed = Number.parseFloat(autoRows);
+        if (Number.isFinite(parsed) && parsed > 0) {
+            return parsed;
+        }
+    }
     if (!document.body) {
         return 32;
     }
@@ -859,7 +867,8 @@ function getRowHeight() {
     probe.style.width = "1px";
     probe.style.pointerEvents = "none";
     document.body.appendChild(probe);
-    const height = probe.getBoundingClientRect().height || probe.offsetHeight || 0;
+    const height =
+        probe.getBoundingClientRect().height || probe.offsetHeight || 0;
     probe.remove();
     return height || 32;
 }
@@ -888,17 +897,26 @@ function updateLayout() {
     );
     const rowHeight = getRowHeight();
     const viewStyles = elements.view ? getComputedStyle(elements.view) : null;
-    const paddingY = viewStyles
-        ? Number.parseFloat(viewStyles.paddingTop) +
-            Number.parseFloat(viewStyles.paddingBottom)
+    const paddingTop = viewStyles
+        ? Number.parseFloat(viewStyles.paddingTop) || 0
         : 0;
     const viewHeight = elements.view
-        ? elements.view.clientHeight
+        ? elements.view.getBoundingClientRect().height
         : Math.max(1, appHeight - headerHeight - footerHeight);
-    const available = Math.max(1, viewHeight - paddingY);
+    const available = Math.max(1, viewHeight - paddingTop);
     const rows = Math.max(1, Math.floor(available / rowHeight));
-    layoutState.rows = rows + 1;
-    elements.grid.style.setProperty("--rows", rows + 1);
+    const nextPaddingBottom = Math.max(
+        0,
+        viewHeight - paddingTop - rows * rowHeight
+    );
+    if (elements.view) {
+        elements.view.style.paddingBottom = `${Math.max(
+            0,
+            nextPaddingBottom
+        )}px`;
+    }
+    layoutState.rows = rows;
+    elements.grid.style.setProperty("--rows", rows);
     setChunkSize();
     fillViewport();
 }
