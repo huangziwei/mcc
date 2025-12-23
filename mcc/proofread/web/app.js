@@ -65,7 +65,7 @@
     startScrollTop: 0,
   };
 
-  const DEFAULT_COLUMNS = ["index", "word"];
+  const DEFAULT_COLUMNS = ["index", "word", "pinyin"];
   const STORAGE_PROOFREAD_BY = "mcc-proofread-by";
 
   async function fetchJson(url, options) {
@@ -498,6 +498,17 @@
         state.columnNames.push(`col-${i + 1}`);
       }
     }
+    ensurePinyinColumn();
+  }
+
+  function ensurePinyinColumn() {
+    if (findColumnIndexByName("pinyin") !== null) {
+      return;
+    }
+    const wordIndex = findColumnIndexByName("word");
+    const insertAt = wordIndex !== null ? wordIndex + 1 : state.columnNames.length;
+    state.columnNames.splice(insertAt, 0, "pinyin");
+    state.tableData.forEach((row) => row.splice(insertAt, 0, ""));
   }
 
   function renderTable() {
