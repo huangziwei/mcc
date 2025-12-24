@@ -37,7 +37,7 @@ const dataState = {
     matchCounts: { proofread: 0, total: 0 },
 };
 const filterState = { value: "all" };
-const searchState = { query: "", timer: null };
+const searchState = { query: "", timer: null, matcher: null };
 const pinyinState = { visible: false };
 const layoutState = { rows: 1 };
 const renderState = { entries: [], rendered: 0, chunkSize: 400 };
@@ -56,12 +56,132 @@ function normalizeQuery(value) {
     return String(value || "").trim().toLowerCase();
 }
 
+const TONE_MARKS = {
+    ā: { base: "a", tone: 1 },
+    á: { base: "a", tone: 2 },
+    ǎ: { base: "a", tone: 3 },
+    à: { base: "a", tone: 4 },
+    ē: { base: "e", tone: 1 },
+    é: { base: "e", tone: 2 },
+    ě: { base: "e", tone: 3 },
+    è: { base: "e", tone: 4 },
+    ī: { base: "i", tone: 1 },
+    í: { base: "i", tone: 2 },
+    ǐ: { base: "i", tone: 3 },
+    ì: { base: "i", tone: 4 },
+    ō: { base: "o", tone: 1 },
+    ó: { base: "o", tone: 2 },
+    ǒ: { base: "o", tone: 3 },
+    ò: { base: "o", tone: 4 },
+    ū: { base: "u", tone: 1 },
+    ú: { base: "u", tone: 2 },
+    ǔ: { base: "u", tone: 3 },
+    ù: { base: "u", tone: 4 },
+    ǖ: { base: "ü", tone: 1 },
+    ǘ: { base: "ü", tone: 2 },
+    ǚ: { base: "ü", tone: 3 },
+    ǜ: { base: "ü", tone: 4 },
+};
+const TONE_MARK_RE = /[āáǎàēéěèīíǐìōóǒòūúǔùǖǘǚǜ]/;
+const TONE_DIGIT_RE = /[1-5]/;
+
+function normalizePattern(value) {
+    return String(value || "").replace(/？/g, "?").replace(/＊/g, "*");
+}
+
+function detectPinyinMode(value) {
+    if (TONE_DIGIT_RE.test(value)) {
+        return "digits";
+    }
+    if (TONE_MARK_RE.test(value)) {
+        return "marks";
+    }
+    return "plain";
+}
+
+function normalizePinyinMarks(value) {
+    return normalizePattern(value)
+        .toLowerCase()
+        .replace(/v/g, "ü")
+        .replace(/\s+/g, " ")
+        .trim();
+}
+
+function normalizePinyinPlain(value) {
+    const marked = normalizePinyinMarks(value);
+    if (!marked) {
+        return "";
+    }
+    let result = "";
+    for (const char of marked) {
+        if (char === "*" || char === "?" || char === " ") {
+            result += char;
+            continue;
+        }
+        if (char >= "1" && char <= "5") {
+            continue;
+        }
+        const mapped = TONE_MARKS[char];
+        if (mapped) {
+            result += mapped.base;
+            continue;
+        }
+        result += char;
+    }
+    return result.trim().replace(/\s+/g, " ");
+}
+
+function pinyinTokenToDigits(token) {
+    if (!token) {
+        return "";
+    }
+    const suffixMatch = token.match(/[*?]+$/);
+    const suffix = suffixMatch ? suffixMatch[0] : "";
+    const core = suffix ? token.slice(0, -suffix.length) : token;
+    let tone = 0;
+    let output = "";
+    for (const char of core) {
+        if (char === "*" || char === "?") {
+            output += char;
+            continue;
+        }
+        if (char >= "1" && char <= "5") {
+            tone = Number(char);
+            continue;
+        }
+        const mapped = TONE_MARKS[char];
+        if (mapped) {
+            output += mapped.base;
+            tone = mapped.tone;
+            continue;
+        }
+        output += char;
+    }
+    if (!output && !suffix) {
+        return "";
+    }
+    if (tone > 0) {
+        output += String(tone);
+    }
+    return output + suffix;
+}
+
+function normalizePinyinDigits(value) {
+    const marked = normalizePinyinMarks(value);
+    if (!marked) {
+        return "";
+    }
+    const tokens = marked.split(/\s+/).filter(Boolean);
+    return tokens.map((token) => pinyinTokenToDigits(token)).join(" ");
+}
+
 function scheduleFilterUpdate() {
     if (searchState.timer) {
         window.clearTimeout(searchState.timer);
     }
     searchState.timer = window.setTimeout(() => {
         searchState.timer = null;
+        searchState.matcher = buildSearchMatcher(searchState.query);
         applyFilters();
     }, 120);
 }
@@ -148,11 +268,87 @@ function matchesLength(entry, parsed) {
     return entry.length >= parsed.value;
 }
 
-function matchesSearch(entry, query) {
-    if (!query) {
+function matchesSearch(entry) {
+    if (!searchState.matcher) {
         return true;
     }
-    return entry.search.includes(query);
+    return searchState.matcher(entry);
+}
+
+function matchGlob(text, pattern) {
+    const textChars = Array.from(text);
+    const patternChars = Array.from(pattern);
+    let tIndex = 0;
+    let pIndex = 0;
+    let starIndex = -1;
+    let matchIndex = 0;
+    while (tIndex < textChars.length) {
+        if (
+            pIndex < patternChars.length &&
+            (patternChars[pIndex] === "?" ||
+                patternChars[pIndex] === textChars[tIndex])
+        ) {
+            tIndex += 1;
+            pIndex += 1;
+            continue;
+        }
+        if (pIndex < patternChars.length && patternChars[pIndex] === "*") {
+            starIndex = pIndex;
+            matchIndex = tIndex;
+            pIndex += 1;
+            continue;
+        }
+        if (starIndex !== -1) {
+            pIndex = starIndex + 1;
+            matchIndex += 1;
+            tIndex = matchIndex;
+            continue;
+        }
+        return false;
+    }
+    while (pIndex < patternChars.length && patternChars[pIndex] === "*") {
+        pIndex += 1;
+    }
+    return pIndex === patternChars.length;
+}
+
+function buildSearchMatcher(query) {
+    const normalized = normalizePattern(query);
+    const trimmed = normalized.trim();
+    if (!trimmed) {
+        return null;
+    }
+    let mode = "word";
+    let term = trimmed;
+    if (trimmed.toLowerCase().startsWith("py:")) {
+        mode = "pinyin";
+        term = trimmed.slice(3).trim();
+    }
+    if (!term) {
+        return null;
+    }
+    const hasWildcard = /[*?]/.test(term);
+    if (mode === "word") {
+        if (!hasWildcard) {
+            return (entry) => entry.word.includes(term);
+        }
+        return (entry) => matchGlob(entry.word, term);
+    }
+    const pinyinMode = detectPinyinMode(term);
+    const normalizer =
+        pinyinMode === "digits"
+            ? normalizePinyinDigits
+            : pinyinMode === "marks"
+              ? normalizePinyinMarks
+              : normalizePinyinPlain;
+    const normalizedQuery = normalizer(term);
+    if (!normalizedQuery) {
+        return null;
+    }
+    if (!hasWildcard) {
+        return (entry) => normalizer(entry.pinyin).includes(normalizedQuery);
+    }
+    return (entry) => matchGlob(normalizer(entry.pinyin), normalizedQuery);
 }
 
 function updateStatusText() {
@@ -172,14 +368,13 @@ function updateFilterButtons() {
 
 function applyFilters() {
     const parsed = parseFilterValue(filterState.value);
-    const query = searchState.query;
     const displayEntries = [];
     const counts = { proofread: 0, total: 0 };
     for (const entry of dataState.allEntries) {
         if (!matchesLength(entry, parsed)) {
             continue;
         }
-        if (!matchesSearch(entry, query)) {
+        if (!matchesSearch(entry)) {
             continue;
         }
         counts.total += 1;
