@@ -8,11 +8,14 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
+from rich.console import Console
+
 from mcc.dx import (
     check_proofread_index_continuity,
     find_duplicate_words,
     find_homophones,
     find_heteronyms,
+    find_typo_words,
 )
 from mcc.merge import merge_csv
 from mcc.publish import DEFAULT_CSV_URL, DEFAULT_TITLE, publish_site
@@ -356,6 +359,49 @@ def build_parser() -> argparse.ArgumentParser:
     )
     dx_heteronym_parser.set_defaults(func=cmd_dx_heteronym, tone=True)
 
+    dx_typo_parser = dx_subparsers.add_parser(
+        "typo",
+        aliases=["type"],
+        help="List words missing from CC-CEDICT",
+    )
+    dx_typo_parser.add_argument(
+        "--merged",
+        default=default_merged,
+        type=Path,
+        help="Merged CSV path",
+    )
+    dx_typo_parser.add_argument(
+        "--csv",
+        dest="csv_dir",
+        default=repo_root / "post" / "csv",
+        type=Path,
+        help="Source CSV directory for page/col lookup",
+    )
+    dx_typo_parser.add_argument(
+        "--pinyin",
+        action="store_true",
+        help="Also flag CC-CEDICT pinyin mismatches",
+    )
+    dx_typo_parser.add_argument(
+        "--output",
+        type=Path,
+        default=None,
+        help="Write results to a file instead of stderr",
+    )
+    typo_tone_group = dx_typo_parser.add_mutually_exclusive_group()
+    typo_tone_group.add_argument(
+        "--tone",
+        action="store_true",
+        help="Match pinyin including tones",
+    )
+    typo_tone_group.add_argument(
+        "--no-tone",
+        dest="tone",
+        action="store_false",
+        help="Ignore tones when matching pinyin (default)",
+    )
+    dx_typo_parser.set_defaults(func=cmd_dx_typo, tone=False, pinyin=False)
+
     return parser
 
 
@@ -455,6 +501,31 @@ def cmd_dx_homophone(args: argparse.Namespace) -> None:
 
 def cmd_dx_heteronym(args: argparse.Namespace) -> None:
     find_heteronyms(args.merged, csv_dir=args.csv_dir, tone=args.tone)
+
+
+def cmd_dx_typo(args: argparse.Namespace) -> None:
+    if args.output is None:
+        find_typo_words(
+            args.merged,
+            csv_dir=args.csv_dir,
+            use_pinyin=args.pinyin,
+            tone=args.tone,
+        )
+        return
+    args.output.parent.mkdir(parents=True, exist_ok=True)
+    with args.output.open("w", encoding="utf-8") as output_file:
+        find_typo_words(
+            args.merged,
+            csv_dir=args.csv_dir,
+            use_pinyin=args.pinyin,
+            tone=args.tone,
+            console=Console(
+                file=output_file,
+                force_terminal=False,
+                color_system=None,
+                stderr=False,
+            ),
+        )
 
 
 def main() -> int:

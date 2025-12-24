@@ -8,6 +8,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from pycccedict.cccedict import CcCedict
 from rich.console import Console
 
 from mcc.merge import list_column_csv, read_csv_rows
@@ -127,6 +128,7 @@ def normalize_pinyin(value: str | None, tone: bool) -> str:
     if not text:
         return ""
     text = text.replace("v", "ü")
+    text = text.replace("u:", "ü")
     text = " ".join(text.split())
     if not text:
         return ""
@@ -167,6 +169,24 @@ def normalize_pinyin_syllable(syllable: str, tone: bool) -> str:
     if tone and tone_value:
         output.append(str(tone_value))
     return "".join(output)
+
+
+def build_cccedict_pinyin_map(
+    ccedict: CcCedict,
+    tone: bool,
+) -> dict[str, set[str]]:
+    mapping: dict[str, set[str]] = {}
+    for entry in ccedict.get_entries():
+        pinyin = normalize_pinyin(entry.get("pinyin", ""), tone=tone)
+        if not pinyin:
+            continue
+        simplified = entry.get("simplified", "")
+        traditional = entry.get("traditional", "")
+        if simplified:
+            mapping.setdefault(simplified, set()).add(pinyin)
+        if traditional:
+            mapping.setdefault(traditional, set()).add(pinyin)
+    return mapping
 
 
 def format_row_source(
@@ -467,3 +487,128 @@ def find_heteronyms(
             parts.append(f"{key}: {refs}")
         console.print(f"- {word} ({len(variants)}): " + " | ".join(parts))
     return len(filtered)
+
+
+def find_typo_words(
+    merged_path: Path,
+    csv_dir: Path | None = None,
+    use_pinyin: bool = False,
+    tone: bool = False,
+    console: Console | None = None,
+) -> int:
+    if console is None:
+        console = Console(stderr=True)
+    merged = load_merged_csv(merged_path)
+    row_sources = build_row_sources(csv_dir) if csv_dir is not None else None
+    if row_sources is not None and len(row_sources) - 1 != len(merged.rows):
+        console.print(
+            "Warning: source CSV row count does not match merged row count."
+        )
+    proofread_rows = build_proofread_row_set(merged.stats)
+    if not proofread_rows:
+        console.print("No proofread rows found in stats header.")
+        return 0
+    word_col = find_column(merged.header, "word", fallback=1)
+    index_col = find_column(merged.header, "index", fallback=0)
+    pinyin_col = None
+    if use_pinyin:
+        pinyin_col = find_column(merged.header, "pinyin", fallback=None)
+
+    ccedict = CcCedict()
+    pinyin_map = (
+        build_cccedict_pinyin_map(ccedict, tone=tone) if use_pinyin else None
+    )
+
+    missing: dict[str, list[tuple[str, str, str]]] = {}
+    mismatched: dict[str, list[tuple[str, str, str]]] = {}
+    missing_pinyin = 0
+    checked = 0
+
+    def format_ref(pinyin: str, index_value: str, source: str) -> str:
+        if use_pinyin:
+            label = pinyin or "n/a"
+            return f"{source} (index {index_value}, pinyin {label})"
+        return f"{source} (index {index_value})"
+
+    for row_num, row in enumerate(merged.rows, start=1):
+        if row_num not in proofread_rows:
+            continue
+        checked += 1
+        word = row[word_col].strip() if word_col < len(row) else ""
+        if not word:
+            continue
+        index_value = row[index_col].strip() if index_col < len(row) else ""
+        if not index_value:
+            index_value = str(row_num)
+        source = format_row_source(row_sources, row_num)
+        pinyin_raw = ""
+        if use_pinyin and pinyin_col is not None and pinyin_col < len(row):
+            pinyin_raw = str(row[pinyin_col]).strip()
+        if ccedict.get_entry(word) is None:
+            missing.setdefault(word, []).append(
+                (pinyin_raw, index_value, source)
+            )
+            continue
+        if use_pinyin:
+            pinyin_key = normalize_pinyin(pinyin_raw, tone=tone)
+            if not pinyin_key:
+                missing_pinyin += 1
+                continue
+            expected = pinyin_map.get(word) if pinyin_map is not None else None
+            if not expected or pinyin_key not in expected:
+                mismatched.setdefault(word, []).append(
+                    (pinyin_raw, index_value, source)
+                )
+
+    if not missing and not mismatched:
+        if use_pinyin:
+            console.print(
+                f"No typos found in {checked} proofread rows (tone: {'on' if tone else 'off'})."
+            )
+            if missing_pinyin:
+                console.print(
+                    f"Rows skipped due to missing pinyin: {missing_pinyin}"
+                )
+        else:
+            console.print(f"No missing words found in {checked} proofread rows.")
+        return 0
+
+    console.print(f"Proofread rows checked: {checked}")
+    if missing:
+        console.print(f"Missing words in CC-CEDICT: {len(missing)}")
+        for word in sorted(
+            missing.keys(),
+            key=lambda value: (-len(missing[value]), value),
+        ):
+            refs = ", ".join(
+                format_ref(pinyin, index_value, source)
+                for pinyin, index_value, source in missing[word]
+            )
+            console.print(f"- {word} ({len(missing[word])}): {refs}")
+
+    if use_pinyin and mismatched:
+        console.print(
+            f"Pinyin mismatches: {len(mismatched)} (tone: {'on' if tone else 'off'})"
+        )
+        for word in sorted(
+            mismatched.keys(),
+            key=lambda value: (-len(mismatched[value]), value),
+        ):
+            refs = ", ".join(
+                format_ref(pinyin, index_value, source)
+                for pinyin, index_value, source in mismatched[word]
+            )
+            expected = ""
+            if pinyin_map is not None:
+                expected = ", ".join(sorted(pinyin_map.get(word, [])))
+            if expected:
+                console.print(
+                    f"- {word} ({len(mismatched[word])}): {refs} | expected {expected}"
+                )
+            else:
+                console.print(f"- {word} ({len(mismatched[word])}): {refs}")
+
+    if use_pinyin and missing_pinyin:
+        console.print(f"Rows skipped due to missing pinyin: {missing_pinyin}")
+
+    return len(missing) + len(mismatched)

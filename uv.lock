@@ -97,6 +97,7 @@ version = "0.1.0"
 source = { editable = "." }
 dependencies = [
     { name = "pillow" },
+    { name = "pycccedict" },
     { name = "pymupdf" },
     { name = "pytest" },
     { name = "requests" },
@@ -106,6 +107,7 @@ dependencies = [
 [package.metadata]
 requires-dist = [
     { name = "pillow" },
+    { name = "pycccedict", specifier = ">=1.2.0" },
     { name = "pymupdf" },
     { name = "pytest" },
     { name = "requests" },
@@ -195,6 +197,15 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/f9/e2/3e91f31a7d2b083fe6ef3fa267035b518369d9511ffab804f839851d2779/pluggy-1.6.0.tar.gz", hash = "sha256:7dcc130b76258d33b90f61b658791dede3486c3e6bfb003ee5c9bfb396dd22f3", size = 69412, upload-time = "2025-05-15T12:30:07.975Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/54/20/4d324d65cc6d9205fabedc306948156824eb9f0ee1633355a8f7ec5c66bf/pluggy-1.6.0-py3-none-any.whl", hash = "sha256:e920276dd6813095e9377c0bc5566d94c932c33b27a3e3945d8389c374dd4746", size = 20538, upload-time = "2025-05-15T12:30:06.134Z" },
+]
+
+[[package]]
+name = "pycccedict"
+version = "1.2.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/71/8c/e65fc057c0002a317d0f357cf737c74adf6b7e331b5d0af0e41bfe498f95/pycccedict-1.2.0.tar.gz", hash = "sha256:4d858480ce0dba22507ffcf817bee76a2fd70b6c688ae2bff2035eecb93b9b75", size = 3830088, upload-time = "2023-11-07T16:45:53.799Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/ff/a2/0a1284e7dde410620f341dffc53a5f6f40f1aa188418fe096fe1411403e8/pycccedict-1.2.0-py3-none-any.whl", hash = "sha256:a810ca3255516a090f5f9059d6cdb156f86842f579f658a7ae7a84273bcd6326", size = 3828790, upload-time = "2023-11-07T16:45:50.574Z" },
 ]
 
 [[package]]
