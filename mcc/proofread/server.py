@@ -11,10 +11,33 @@ from typing import Any
 from urllib.parse import parse_qs, urlparse
 
 from rich.console import Console
+from pycccedict.cccedict import CcCedict
 
 from mcc.stats import collect_stats, update_readme_stats
 
 _README_STATS_LOCK = threading.Lock()
+_CCCEDICT_LOCK = threading.Lock()
+_CCCEDICT_WORDS: set[str] | None = None
+
+
+def _load_cccedict_words() -> set[str]:
+    global _CCCEDICT_WORDS
+    if _CCCEDICT_WORDS is not None:
+        return _CCCEDICT_WORDS
+    with _CCCEDICT_LOCK:
+        if _CCCEDICT_WORDS is not None:
+            return _CCCEDICT_WORDS
+        ccedict = CcCedict()
+        words: set[str] = set()
+        for entry in ccedict.get_entries():
+            simplified = entry.get("simplified")
+            traditional = entry.get("traditional")
+            if simplified:
+                words.add(simplified)
+            if traditional:
+                words.add(traditional)
+        _CCCEDICT_WORDS = words
+    return _CCCEDICT_WORDS
 
 
 class ProofreadRequestHandler(SimpleHTTPRequestHandler):
@@ -58,6 +81,9 @@ class ProofreadRequestHandler(SimpleHTTPRequestHandler):
             return
         if parsed.path == "/api/readme-stats":
             self._handle_api_readme_stats()
+            return
+        if parsed.path == "/api/cccedict-check":
+            self._handle_api_cccedict_check()
             return
         self.send_error(404, "Unknown endpoint")
 
@@ -177,6 +203,46 @@ class ProofreadRequestHandler(SimpleHTTPRequestHandler):
         self.send_header("Content-Length", str(len(payload)))
         self.end_headers()
         self.wfile.write(payload)
+
+    def _handle_api_cccedict_check(self) -> None:
+        content_length = int(self.headers.get("Content-Length", "0"))
+        data = self.rfile.read(content_length)
+        try:
+            payload = json.loads(data)
+        except json.JSONDecodeError:
+            self.send_error(400, "Invalid JSON payload")
+            return
+        words = payload.get("words")
+        if not isinstance(words, list):
+            self.send_error(400, "Missing words list")
+            return
+        normalized: set[str] = set()
+        for word in words:
+            if word is None:
+                continue
+            text = str(word).strip()
+            if text:
+                normalized.add(text)
+        if not normalized:
+            response = json.dumps({"missing": []}).encode("utf-8")
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(response)))
+            self.end_headers()
+            self.wfile.write(response)
+            return
+        try:
+            ccedict_words = _load_cccedict_words()
+        except Exception:
+            self.send_error(500, "Failed to load CC-CEDICT")
+            return
+        missing = sorted(normalized.difference(ccedict_words))
+        response = json.dumps({"missing": missing}).encode("utf-8")
+        self.send_response(200)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(response)))
+        self.end_headers()
+        self.wfile.write(response)
 
     def _resolve_repo_path(self, raw_path: str) -> Path | None:
         if self._repo_root is None:

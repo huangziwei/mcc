@@ -6,6 +6,8 @@
   --accent: #f08a4b;
   --accent-dark: #d26d2f;
   --border: #e3d8ca;
+  --warn-bg: #ffe4dd;
+  --warn-border: #f2b8a4;
   --shadow: 0 10px 30px rgba(33, 23, 8, 0.08);
   --pane-height: 70vh;
   --pane-height-compact: 50vh;
@@ -245,6 +247,11 @@ button.primary:hover {
 .table-container td.selected {
   outline: 2px solid var(--accent);
   outline-offset: -2px;
+}
+
+.table-container td.cccedict-missing {
+  background: var(--warn-bg);
+  border-color: var(--warn-border);
 }
 
 .image-frame {

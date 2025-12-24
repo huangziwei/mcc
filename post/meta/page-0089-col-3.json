@@ -4,11 +4,12 @@
   "proofread_pass": 1,
   "proofread_level": "pass-1",
   "proofread_by": "_hzw",
-  "proofread_started_at": "2025-12-22T22:07",
-  "proofread_completed_at": "2025-12-22T22:08",
+  "proofread_started_at": "2025-12-24T13:54",
+  "proofread_completed_at": "2025-12-24T13:54",
   "notes": null,
   "columns": [
     "index",
-    "word"
+    "word",
+    "pinyin"
   ]
 }

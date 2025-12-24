@@ -18,6 +18,9 @@
     originalMetaSerialized: "",
     originalPass: null,
     sessionStartedAt: "",
+    ccedictCache: new Map(),
+    ccedictReady: false,
+    cccedictRequestId: 0,
   };
 
   const elements = {
@@ -453,13 +456,25 @@
     state.sessionStartedAt = nowLocalValue();
     setupColumns(meta.columns);
     setDefaultShiftColumn();
+    state.cccedictCache = new Map();
+    state.cccedictReady = false;
+    state.cccedictRequestId += 1;
+    const cccedictRequestId = state.cccedictRequestId;
     renderTable();
     renderMetadata();
     await loadImage(item);
     elements.tableContainer.scrollTop = 0;
     renderColumnSelect();
     updateProgress();
-    setStatus(`Loaded ${item.base}`);
+    const baseStatus = `Loaded ${item.base}`;
+    const ccedictStatus = await refreshCcedictHighlights(cccedictRequestId);
+    if (ccedictStatus && ccedictStatus.status === "ok") {
+      setStatus(`${baseStatus} | CC-CEDICT: ${ccedictStatus.missing} missing`);
+    } else if (ccedictStatus && ccedictStatus.status === "error") {
+      setStatus(`${baseStatus} | CC-CEDICT check failed`, true);
+    } else {
+      setStatus(baseStatus);
+    }
   }
 
   async function navigateTo(index) {
@@ -571,6 +586,9 @@
           const c = Number(target.dataset.col);
           state.tableData[r][c] = target.value;
         });
+        input.addEventListener("change", () => {
+          checkWordCell(rowIndex, colIndex);
+        });
         input.addEventListener("focus", () => {
           state.selectedRow = rowIndex;
           state.selectedCol = colIndex;
@@ -609,6 +627,7 @@
     table.appendChild(tbody);
     elements.tableContainer.appendChild(table);
     updateShiftTarget();
+    applyWordHighlights();
   }
 
   function highlightSelection() {
@@ -667,6 +686,146 @@
       }
     }
     return null;
+  }
+
+  function normalizeWord(value) {
+    return String(value || "").trim();
+  }
+
+  function collectWordColumnValues(colIndex) {
+    const words = new Set();
+    state.tableData.forEach((row) => {
+      if (!row || colIndex >= row.length) {
+        return;
+      }
+      const word = normalizeWord(row[colIndex]);
+      if (word) {
+        words.add(word);
+      }
+    });
+    return Array.from(words);
+  }
+
+  function clearWordHighlights() {
+    const cells = elements.tableContainer.querySelectorAll("td.cccedict-missing");
+    cells.forEach((cell) => cell.classList.remove("cccedict-missing"));
+  }
+
+  function applyWordHighlights() {
+    clearWordHighlights();
+    const wordCol = findColumnIndexByName("word");
+    if (
+      wordCol === null ||
+      !state.cccedictCache ||
+      state.cccedictCache.size === 0
+    ) {
+      return 0;
+    }
+    let missingCount = 0;
+    for (let rowIndex = 0; rowIndex < state.tableData.length; rowIndex += 1) {
+      const row = state.tableData[rowIndex];
+      if (!row || wordCol >= row.length) {
+        continue;
+      }
+      const word = normalizeWord(row[wordCol]);
+      if (!word) {
+        continue;
+      }
+      const known = state.cccedictCache.get(word);
+      if (known !== false) {
+        continue;
+      }
+      const selector = `input[data-row='${rowIndex}'][data-col='${wordCol}']`;
+      const input = elements.tableContainer.querySelector(selector);
+      if (input && input.parentElement) {
+        input.parentElement.classList.add("cccedict-missing");
+      }
+      missingCount += 1;
+    }
+    return missingCount;
+  }
+
+  function applyCcedictCache(words, missing) {
+    if (!state.cccedictCache) {
+      state.cccedictCache = new Map();
+    }
+    const missingSet = new Set(missing || []);
+    words.forEach((word) => {
+      state.cccedictCache.set(word, !missingSet.has(word));
+    });
+    return missingSet.size;
+  }
+
+  async function fetchCcedictMissing(words) {
+    const response = await fetchJson("/api/cccedict-check", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ words }),
+    });
+    if (!response || !Array.isArray(response.missing)) {
+      return [];
+    }
+    return response.missing;
+  }
+
+  async function refreshCcedictHighlights(requestId) {
+    state.cccedictReady = false;
+    clearWordHighlights();
+    const wordCol = findColumnIndexByName("word");
+    if (wordCol === null) {
+      return { status: "missing-column" };
+    }
+    const words = collectWordColumnValues(wordCol);
+    if (words.length === 0) {
+      return { status: "empty" };
+    }
+    try {
+      const missing = await fetchCcedictMissing(words);
+      if (requestId !== state.cccedictRequestId) {
+        return null;
+      }
+      applyCcedictCache(words, missing);
+      state.cccedictReady = true;
+      const missingCells = applyWordHighlights();
+      return { status: "ok", missing: missingCells, total: words.length };
+    } catch (error) {
+      if (requestId !== state.cccedictRequestId) {
+        return null;
+      }
+      state.cccedictReady = false;
+      clearWordHighlights();
+      return { status: "error" };
+    }
+  }
+
+  async function checkWordCell(rowIndex, colIndex) {
+    if (!state.cccedictReady) {
+      return;
+    }
+    const wordCol = findColumnIndexByName("word");
+    if (wordCol === null || colIndex !== wordCol) {
+      return;
+    }
+    const value = normalizeWord(state.tableData[rowIndex][colIndex]);
+    if (!value) {
+      applyWordHighlights();
+      return;
+    }
+    if (state.cccedictCache.has(value)) {
+      applyWordHighlights();
+      return;
+    }
+    const requestId = state.cccedictRequestId;
+    try {
+      const missing = await fetchCcedictMissing([value]);
+      if (requestId !== state.cccedictRequestId) {
+        return;
+      }
+      applyCcedictCache([value], missing);
+      applyWordHighlights();
+    } catch (error) {
+      // Ignore check failures for single-word updates.
+    }
   }
 
   function setDefaultShiftColumn() {
