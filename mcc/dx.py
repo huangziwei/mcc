@@ -397,3 +397,73 @@ def find_homophones(
         )
         console.print(f"- {key} ({len(filtered[key])}): {refs}")
     return len(filtered)
+
+
+def find_heteronyms(
+    merged_path: Path,
+    csv_dir: Path | None = None,
+    tone: bool = True,
+    console: Console | None = None,
+) -> int:
+    if console is None:
+        console = Console(stderr=True)
+    merged = load_merged_csv(merged_path)
+    row_sources = build_row_sources(csv_dir) if csv_dir is not None else None
+    if row_sources is not None and len(row_sources) - 1 != len(merged.rows):
+        console.print(
+            "Warning: source CSV row count does not match merged row count."
+        )
+    proofread_rows = build_proofread_row_set(merged.stats)
+    if not proofread_rows:
+        console.print("No proofread rows found in stats header.")
+        return 0
+    word_col = find_column(merged.header, "word", fallback=1)
+    index_col = find_column(merged.header, "index", fallback=0)
+    pinyin_col = find_column(merged.header, "pinyin", fallback=None)
+
+    groups: dict[str, dict[str, list[tuple[str, str, str]]]] = {}
+    checked = 0
+    for row_num, row in enumerate(merged.rows, start=1):
+        if row_num not in proofread_rows:
+            continue
+        checked += 1
+        word = row[word_col].strip() if word_col < len(row) else ""
+        if not word:
+            continue
+        pinyin_raw = row[pinyin_col] if pinyin_col < len(row) else ""
+        pinyin_raw = str(pinyin_raw).strip()
+        key = normalize_pinyin(pinyin_raw, tone=tone)
+        if not key:
+            continue
+        index_value = ""
+        if index_col < len(row):
+            index_value = row[index_col].strip()
+        if not index_value:
+            index_value = str(row_num)
+        source = format_row_source(row_sources, row_num)
+        groups.setdefault(word, {}).setdefault(key, []).append(
+            (pinyin_raw, index_value, source)
+        )
+
+    filtered = {word: variants for word, variants in groups.items() if len(variants) > 1}
+    if not filtered:
+        console.print(
+            f"No heteronyms found in {checked} proofread rows (tone: {'on' if tone else 'off'})."
+        )
+        return 0
+
+    console.print(f"Proofread rows checked: {checked}")
+    console.print(
+        f"Heteronyms: {len(filtered)} (tone: {'on' if tone else 'off'})"
+    )
+    for word in sorted(filtered.keys(), key=lambda value: (-len(filtered[value]), value)):
+        variants = filtered[word]
+        parts = []
+        for key in sorted(variants.keys(), key=lambda value: (-len(variants[value]), value)):
+            refs = ", ".join(
+                f"{pinyin} (index {index_value}, {source})"
+                for pinyin, index_value, source in variants[key]
+            )
+            parts.append(f"{key}: {refs}")
+        console.print(f"- {word} ({len(variants)}): " + " | ".join(parts))
+    return len(filtered)

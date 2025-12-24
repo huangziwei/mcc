@@ -8,7 +8,12 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
-from mcc.dx import check_proofread_index_continuity, find_duplicate_words, find_homophones
+from mcc.dx import (
+    check_proofread_index_continuity,
+    find_duplicate_words,
+    find_homophones,
+    find_heteronyms,
+)
 from mcc.merge import merge_csv
 from mcc.publish import DEFAULT_CSV_URL, DEFAULT_TITLE, publish_site
 from mcc.preprocess.ocr import ocr_columns
@@ -320,6 +325,37 @@ def build_parser() -> argparse.ArgumentParser:
     )
     dx_homophone_parser.set_defaults(func=cmd_dx_homophone, tone=False)
 
+    dx_heteronym_parser = dx_subparsers.add_parser(
+        "heteronym",
+        help="List words with multiple pronunciations",
+    )
+    dx_heteronym_parser.add_argument(
+        "--merged",
+        default=default_merged,
+        type=Path,
+        help="Merged CSV path",
+    )
+    dx_heteronym_parser.add_argument(
+        "--csv",
+        dest="csv_dir",
+        default=repo_root / "post" / "csv",
+        type=Path,
+        help="Source CSV directory for page/col lookup",
+    )
+    heteronym_tone_group = dx_heteronym_parser.add_mutually_exclusive_group()
+    heteronym_tone_group.add_argument(
+        "--tone",
+        action="store_true",
+        help="Match pinyin including tones (default)",
+    )
+    heteronym_tone_group.add_argument(
+        "--no-tone",
+        dest="tone",
+        action="store_false",
+        help="Ignore tones when grouping",
+    )
+    dx_heteronym_parser.set_defaults(func=cmd_dx_heteronym, tone=True)
+
     return parser
 
 
@@ -415,6 +451,10 @@ def cmd_dx_duplicates(args: argparse.Namespace) -> None:
 
 def cmd_dx_homophone(args: argparse.Namespace) -> None:
     find_homophones(args.merged, csv_dir=args.csv_dir, tone=args.tone)
+
+
+def cmd_dx_heteronym(args: argparse.Namespace) -> None:
+    find_heteronyms(args.merged, csv_dir=args.csv_dir, tone=args.tone)
 
 
 def main() -> int:
