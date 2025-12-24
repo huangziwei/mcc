@@ -215,14 +215,57 @@ function parsePinyinTokens(value) {
     return raw.split(/\s+/);
 }
 
+function normalizeErhuaToken(token) {
+    const raw = normalizePattern(token).trim().toLowerCase().replace(/v/g, "ü");
+    if (!raw) {
+        return "";
+    }
+    const trimmed = raw.replace(/[*?]+$/g, "");
+    let result = "";
+    for (const char of trimmed) {
+        if (char >= "1" && char <= "5") {
+            continue;
+        }
+        const mapped = TONE_MARKS[char];
+        result += mapped ? mapped.base : char;
+    }
+    return result;
+}
+
+function isErhuaToken(token) {
+    const normalized = normalizeErhuaToken(token);
+    if (!normalized) {
+        return null;
+    }
+    if (normalized === "er") {
+        return false;
+    }
+    return normalized.endsWith("r");
+}
+
+function shouldUseErhua(word, tokens) {
+    if (!word.endsWith("儿")) {
+        return false;
+    }
+    if (tokens && tokens.length) {
+        const lastToken = tokens[tokens.length - 1];
+        if (lastToken) {
+            const erhua = isErhuaToken(lastToken);
+            if (erhua !== null) {
+                return erhua;
+            }
+        }
+    }
+    return !ERHUA_EXCEPTIONS.has(word);
+}
+
 function appendWordRuby(target, entry) {
     target.textContent = "";
     const ruby = document.createElement("ruby");
     ruby.className = "word-ruby";
     const chars = Array.from(entry.word);
     const tokens = entry.pinyinTokens || [];
-    const useErhua =
-        entry.word.endsWith("儿") && !ERHUA_EXCEPTIONS.has(entry.word);
+    const useErhua = shouldUseErhua(entry.word, tokens);
     const lastIndex = chars.length - 1;
     chars.forEach((char, index) => {
         if (useErhua && index === lastIndex) {
