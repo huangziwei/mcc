@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import parse_qs, urlparse
 
+import jieba
 from rich.console import Console
 from pycccedict.cccedict import CcCedict
 
@@ -18,6 +19,9 @@ from mcc.stats import collect_stats, update_readme_stats
 _README_STATS_LOCK = threading.Lock()
 _CCCEDICT_LOCK = threading.Lock()
 _CCCEDICT_WORDS: set[str] | None = None
+_JIEBA_LOCK = threading.Lock()
+_JIEBA_READY = False
+_JIEBA_CACHE: dict[str, bool] = {}
 
 
 def _load_cccedict_words() -> set[str]:
@@ -38,6 +42,35 @@ def _load_cccedict_words() -> set[str]:
                 words.add(traditional)
         _CCCEDICT_WORDS = words
     return _CCCEDICT_WORDS
+
+
+def _filter_missing_with_jieba(words: list[str]) -> list[str]:
+    global _JIEBA_READY
+    if not words:
+        return []
+    remaining: list[str] = []
+    to_check: list[str] = []
+    for word in words:
+        cached = _JIEBA_CACHE.get(word)
+        if cached is None:
+            to_check.append(word)
+        elif cached is False:
+            remaining.append(word)
+    if not to_check:
+        return remaining
+    with _JIEBA_LOCK:
+        if not _JIEBA_READY:
+            jieba.initialize()
+            _JIEBA_READY = True
+        for word in to_check:
+            cached = _JIEBA_CACHE.get(word)
+            if cached is None:
+                freq = jieba.get_FREQ(word)
+                cached = bool(freq) and freq > 0
+                _JIEBA_CACHE[word] = cached
+            if cached is False:
+                remaining.append(word)
+    return remaining
 
 
 class ProofreadRequestHandler(SimpleHTTPRequestHandler):
@@ -237,6 +270,12 @@ class ProofreadRequestHandler(SimpleHTTPRequestHandler):
             self.send_error(500, "Failed to load CC-CEDICT")
             return
         missing = sorted(normalized.difference(ccedict_words))
+        if missing:
+            try:
+                missing = _filter_missing_with_jieba(missing)
+            except Exception:
+                self.send_error(500, "Failed to load Jieba dictionary")
+                return
         response = json.dumps({"missing": missing}).encode("utf-8")
         self.send_response(200)
         self.send_header("Content-Type", "application/json")
