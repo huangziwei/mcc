@@ -22,7 +22,7 @@ _INDEX_TEMPLATE = """<!DOCTYPE html>
             href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;600&family=Noto+Serif+SC:wght@400;600&display=swap"
             rel="stylesheet"
         />
-        <link rel="stylesheet" href="styles.css?v=27" />
+        <link rel="stylesheet" href="styles.css?v=28" />
     </head>
     <body>
         <header class="top">
@@ -77,7 +77,7 @@ _INDEX_TEMPLATE = """<!DOCTYPE html>
                 ISBN 978-7-100-20011-0.
             </div>
         </footer>
-        <script src="app.js?v=27"></script>
+        <script src="app.js?v=28"></script>
     </body>
 </html>"""
 
@@ -546,9 +546,30 @@ const TONE_MARKS = {
 };
 const TONE_MARK_RE = /[āáǎàēéěèīíǐìōóǒòūúǔùǖǘǚǜ]/;
 const TONE_DIGIT_RE = /[1-5]/;
+const CJK_RE = /[\\u3400-\\u9fff]/;
+const PINYIN_ALLOWED_RE =
+    /^[a-zāáǎàēéěèīíǐìōóǒòūúǔùǖǘǚǜüv\\s*?'\\d]+$/i;
+const PINYIN_VOWEL_RE = /[aeiouüvāáǎàēéěèīíǐìōóǒòūúǔùǖǘǚǜ]/i;
 
 function normalizePattern(value) {
     return String(value || "").replace(/？/g, "?").replace(/＊/g, "*");
+}
+
+function isLikelyPinyin(value) {
+    const trimmed = normalizePattern(value).trim();
+    if (!trimmed) {
+        return false;
+    }
+    if (CJK_RE.test(trimmed)) {
+        return false;
+    }
+    if (!PINYIN_ALLOWED_RE.test(trimmed)) {
+        return false;
+    }
+    if (TONE_DIGIT_RE.test(trimmed)) {
+        return true;
+    }
+    return PINYIN_VOWEL_RE.test(trimmed);
 }
 
 function detectPinyinMode(value) {
@@ -780,11 +801,19 @@ function buildSearchMatcher(query) {
     if (!trimmed) {
         return null;
     }
-    let mode = "word";
+    let mode = "auto";
     let term = trimmed;
-    if (trimmed.toLowerCase().startsWith("py:")) {
+    const lowered = trimmed.toLowerCase();
+    if (lowered.startsWith("py:")) {
         mode = "pinyin";
         term = trimmed.slice(3).trim();
+    } else if (lowered.startsWith("word:")) {
+        mode = "word";
+        term = trimmed.slice(5).trim();
+    } else if (isLikelyPinyin(trimmed)) {
+        mode = "pinyin";
+    } else {
+        mode = "word";
     }
     if (!term) {
         return null;
@@ -792,9 +821,11 @@ function buildSearchMatcher(query) {
     const hasWildcard = /[*?]/.test(term);
     if (mode === "word") {
         if (!hasWildcard) {
-            return (entry) => entry.word.includes(term);
+            const termLower = term.toLowerCase();
+            return (entry) => entry.word.toLowerCase().includes(termLower);
         }
-        return (entry) => matchGlob(entry.word, term);
+        const termLower = term.toLowerCase();
+        return (entry) => matchGlob(entry.word.toLowerCase(), termLower);
     }
     const pinyinMode = detectPinyinMode(term);
     const normalizer =
