@@ -8,7 +8,7 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
-from mcc.dx import check_proofread_index_continuity, find_duplicate_words
+from mcc.dx import check_proofread_index_continuity, find_duplicate_words, find_homophones
 from mcc.merge import merge_csv
 from mcc.publish import DEFAULT_CSV_URL, DEFAULT_TITLE, publish_site
 from mcc.preprocess.ocr import ocr_columns
@@ -289,6 +289,37 @@ def build_parser() -> argparse.ArgumentParser:
     )
     dx_dup_parser.set_defaults(func=cmd_dx_duplicates)
 
+    dx_homophone_parser = dx_subparsers.add_parser(
+        "homophone",
+        help="List words that share the same pinyin",
+    )
+    dx_homophone_parser.add_argument(
+        "--merged",
+        default=default_merged,
+        type=Path,
+        help="Merged CSV path",
+    )
+    dx_homophone_parser.add_argument(
+        "--csv",
+        dest="csv_dir",
+        default=repo_root / "post" / "csv",
+        type=Path,
+        help="Source CSV directory for page/col lookup",
+    )
+    tone_group = dx_homophone_parser.add_mutually_exclusive_group()
+    tone_group.add_argument(
+        "--tone",
+        action="store_true",
+        help="Match pinyin including tones",
+    )
+    tone_group.add_argument(
+        "--no-tone",
+        dest="tone",
+        action="store_false",
+        help="Ignore tones when grouping (default)",
+    )
+    dx_homophone_parser.set_defaults(func=cmd_dx_homophone, tone=False)
+
     return parser
 
 
@@ -380,6 +411,10 @@ def cmd_dx_index(args: argparse.Namespace) -> None:
 
 def cmd_dx_duplicates(args: argparse.Namespace) -> None:
     find_duplicate_words(args.merged, csv_dir=args.csv_dir)
+
+
+def cmd_dx_homophone(args: argparse.Namespace) -> None:
+    find_homophones(args.merged, csv_dir=args.csv_dir, tone=args.tone)
 
 
 def main() -> int:

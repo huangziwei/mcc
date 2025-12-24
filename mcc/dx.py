@@ -3,6 +3,7 @@ from __future__ import annotations
 import csv
 import io
 import json
+import re
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -12,6 +13,32 @@ from rich.console import Console
 from mcc.merge import list_column_csv, read_csv_rows
 
 STATS_PREFIX = "# mcc-stats:"
+TONE_MARKS = {
+    "ā": ("a", 1),
+    "á": ("a", 2),
+    "ǎ": ("a", 3),
+    "à": ("a", 4),
+    "ē": ("e", 1),
+    "é": ("e", 2),
+    "ě": ("e", 3),
+    "è": ("e", 4),
+    "ī": ("i", 1),
+    "í": ("i", 2),
+    "ǐ": ("i", 3),
+    "ì": ("i", 4),
+    "ō": ("o", 1),
+    "ó": ("o", 2),
+    "ǒ": ("o", 3),
+    "ò": ("o", 4),
+    "ū": ("u", 1),
+    "ú": ("u", 2),
+    "ǔ": ("u", 3),
+    "ù": ("u", 4),
+    "ǖ": ("ü", 1),
+    "ǘ": ("ü", 2),
+    "ǚ": ("ü", 3),
+    "ǜ": ("ü", 4),
+}
 
 
 @dataclass
@@ -93,6 +120,53 @@ def build_row_sources(csv_dir: Path) -> list[tuple[int, int, int] | None]:
         for offset in range(row_count):
             sources.append((page_num, col_num, offset + 1))
     return sources
+
+
+def normalize_pinyin(value: str | None, tone: bool) -> str:
+    text = str(value or "").strip().lower()
+    if not text:
+        return ""
+    text = text.replace("v", "ü")
+    text = " ".join(text.split())
+    if not text:
+        return ""
+    tokens = text.split(" ")
+    normalized_tokens = [
+        normalize_pinyin_token(token, tone=tone) for token in tokens if token
+    ]
+    return " ".join([token for token in normalized_tokens if token])
+
+
+def normalize_pinyin_token(token: str, tone: bool) -> str:
+    parts = re.split(r"([-'·])", token)
+    normalized_parts = []
+    for part in parts:
+        if part in {"'", "-", "·"}:
+            normalized_parts.append(part)
+            continue
+        if not part:
+            continue
+        normalized_parts.append(normalize_pinyin_syllable(part, tone=tone))
+    return "".join(normalized_parts)
+
+
+def normalize_pinyin_syllable(syllable: str, tone: bool) -> str:
+    tone_value = 0
+    output: list[str] = []
+    for char in syllable:
+        if char in "12345":
+            tone_value = int(char)
+            continue
+        mapped = TONE_MARKS.get(char)
+        if mapped:
+            base, mark_tone = mapped
+            output.append(base)
+            tone_value = mark_tone
+            continue
+        output.append(char)
+    if tone and tone_value:
+        output.append(str(tone_value))
+    return "".join(output)
 
 
 def format_row_source(
@@ -255,3 +329,71 @@ def find_duplicate_words(
         )
         console.print(f"- {word} [{pinyin}] ({len(duplicates[key])}): {refs}")
     return len(duplicates)
+
+
+def find_homophones(
+    merged_path: Path,
+    csv_dir: Path | None = None,
+    tone: bool = False,
+    console: Console | None = None,
+) -> int:
+    if console is None:
+        console = Console(stderr=True)
+    merged = load_merged_csv(merged_path)
+    row_sources = build_row_sources(csv_dir) if csv_dir is not None else None
+    if row_sources is not None and len(row_sources) - 1 != len(merged.rows):
+        console.print(
+            "Warning: source CSV row count does not match merged row count."
+        )
+    proofread_rows = build_proofread_row_set(merged.stats)
+    if not proofread_rows:
+        console.print("No proofread rows found in stats header.")
+        return 0
+    word_col = find_column(merged.header, "word", fallback=1)
+    index_col = find_column(merged.header, "index", fallback=0)
+    pinyin_col = find_column(merged.header, "pinyin", fallback=None)
+
+    groups: dict[str, list[tuple[str, str, str, str]]] = {}
+    checked = 0
+    for row_num, row in enumerate(merged.rows, start=1):
+        if row_num not in proofread_rows:
+            continue
+        checked += 1
+        word = row[word_col].strip() if word_col < len(row) else ""
+        if not word:
+            continue
+        pinyin_raw = row[pinyin_col] if pinyin_col < len(row) else ""
+        pinyin_raw = str(pinyin_raw).strip()
+        key = normalize_pinyin(pinyin_raw, tone=tone)
+        if not key:
+            continue
+        index_value = ""
+        if index_col < len(row):
+            index_value = row[index_col].strip()
+        if not index_value:
+            index_value = str(row_num)
+        source = format_row_source(row_sources, row_num)
+        groups.setdefault(key, []).append((word, pinyin_raw, index_value, source))
+
+    filtered = {
+        key: entries
+        for key, entries in groups.items()
+        if len({entry[0] for entry in entries}) > 1
+    }
+    if not filtered:
+        console.print(
+            f"No homophones found in {checked} proofread rows (tone: {'on' if tone else 'off'})."
+        )
+        return 0
+
+    console.print(f"Proofread rows checked: {checked}")
+    console.print(
+        f"Homophone groups: {len(filtered)} (tone: {'on' if tone else 'off'})"
+    )
+    for key in sorted(filtered.keys(), key=lambda value: (-len(filtered[value]), value)):
+        refs = ", ".join(
+            f"{word} [{pinyin}] (index {index_value}, {source})"
+            for word, pinyin, index_value, source in filtered[key]
+        )
+        console.print(f"- {key} ({len(filtered[key])}): {refs}")
+    return len(filtered)
