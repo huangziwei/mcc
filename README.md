@@ -1,13 +1,13 @@
 # Modern Chinese Common Words / 现代汉语常用词表 (2e, 2021)
 
-WIP.
+WIP. Preview: http://hzwei.dev/mcc/
 
 ### Proofreading Progress
 
 <!-- mcc:stats:start -->
-- Rows proofread: 24,878 / 56,946 (43.7%)
-- Columns proofread: 545 / 1,245 (43.8%)
-- Passes: pass 1: 545 cols / 24,878 rows
+- Rows proofread: 25,103 / 56,941 (44.1%)
+- Columns proofread: 550 / 1,245 (44.2%)
+- Passes: pass 1: 550 cols / 25,103 rows
 <!-- mcc:stats:end -->
 
 ### Usage

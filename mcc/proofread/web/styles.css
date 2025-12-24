@@ -8,6 +8,8 @@
   --border: #e3d8ca;
   --warn-bg: #ffe4dd;
   --warn-border: #f2b8a4;
+  --single-bg: #fff1c7;
+  --single-border: #f5c47b;
   --shadow: 0 10px 30px rgba(33, 23, 8, 0.08);
   --pane-height: 70vh;
   --pane-height-compact: 50vh;
@@ -249,8 +251,22 @@ button.primary:hover {
   outline-offset: -2px;
 }
 
+.table-container td.word-single {
+  background: var(--single-bg);
+  border-color: var(--single-border);
+}
+
 .table-container td.cccedict-missing {
   background: var(--warn-bg);
+  border-color: var(--warn-border);
+}
+
+.table-container td.cccedict-missing.word-single {
+  background: linear-gradient(
+    135deg,
+    var(--warn-bg) 0 60%,
+    var(--single-bg) 60% 100%
+  );
   border-color: var(--warn-border);
 }
 

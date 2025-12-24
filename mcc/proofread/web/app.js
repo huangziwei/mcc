@@ -707,18 +707,19 @@
   }
 
   function clearWordHighlights() {
-    const cells = elements.tableContainer.querySelectorAll("td.cccedict-missing");
-    cells.forEach((cell) => cell.classList.remove("cccedict-missing"));
+    const cells = elements.tableContainer.querySelectorAll(
+      "td.cccedict-missing, td.word-single"
+    );
+    cells.forEach((cell) => {
+      cell.classList.remove("cccedict-missing");
+      cell.classList.remove("word-single");
+    });
   }
 
   function applyWordHighlights() {
     clearWordHighlights();
     const wordCol = findColumnIndexByName("word");
-    if (
-      wordCol === null ||
-      !state.cccedictCache ||
-      state.cccedictCache.size === 0
-    ) {
+    if (wordCol === null) {
       return 0;
     }
     let missingCount = 0;
@@ -731,16 +732,19 @@
       if (!word) {
         continue;
       }
-      const known = state.cccedictCache.get(word);
-      if (known !== false) {
-        continue;
-      }
       const selector = `input[data-row='${rowIndex}'][data-col='${wordCol}']`;
       const input = elements.tableContainer.querySelector(selector);
-      if (input && input.parentElement) {
-        input.parentElement.classList.add("cccedict-missing");
+      if (!input || !input.parentElement) {
+        continue;
       }
-      missingCount += 1;
+      const cell = input.parentElement;
+      if (Array.from(word).length === 1) {
+        cell.classList.add("word-single");
+      }
+      if (state.cccedictCache && state.cccedictCache.get(word) === false) {
+        cell.classList.add("cccedict-missing");
+        missingCount += 1;
+      }
     }
     return missingCount;
   }
@@ -773,10 +777,12 @@
     clearWordHighlights();
     const wordCol = findColumnIndexByName("word");
     if (wordCol === null) {
+      applyWordHighlights();
       return { status: "missing-column" };
     }
     const words = collectWordColumnValues(wordCol);
     if (words.length === 0) {
+      applyWordHighlights();
       return { status: "empty" };
     }
     try {
@@ -793,13 +799,14 @@
         return null;
       }
       state.cccedictReady = false;
-      clearWordHighlights();
+      applyWordHighlights();
       return { status: "error" };
     }
   }
 
   async function checkWordCell(rowIndex, colIndex) {
     if (!state.cccedictReady) {
+      applyWordHighlights();
       return;
     }
     const wordCol = findColumnIndexByName("word");
