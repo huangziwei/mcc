@@ -5,9 +5,9 @@ WIP. Preview: http://hzwei.dev/mcc/
 ### Proofreading Progress
 
 <!-- mcc:stats:start -->
-- Rows proofread: 26,706 / 56,934 (46.9%)
-- Columns proofread: 585 / 1,245 (47.0%)
-- Passes: pass 1: 585 cols / 26,706 rows
+- Rows proofread: 27,392 / 56,930 (48.1%)
+- Columns proofread: 600 / 1,245 (48.2%)
+- Passes: pass 1: 600 cols / 27,392 rows
 <!-- mcc:stats:end -->
 
 ### Usage
