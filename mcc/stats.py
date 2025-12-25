@@ -151,8 +151,44 @@ def format_stats_lines(stats: dict[str, Any]) -> list[str]:
     return lines
 
 
+def format_readme_stats_lines(stats: dict[str, Any]) -> list[str]:
+    rows = stats["rows"]
+    row_total = int(rows.get("total", 0))
+    row_unproofread = int(rows.get("unproofread", 0))
+    row_passes = {str(key): int(value) for key, value in (rows.get("passes") or {}).items()}
+    pass_numbers: list[int] = []
+    for key in row_passes:
+        try:
+            pass_num = int(key)
+        except (TypeError, ValueError):
+            continue
+        if pass_num > 0:
+            pass_numbers.append(pass_num)
+    current_pass = max(pass_numbers) if pass_numbers else 1
+
+    if row_unproofread > 0 or current_pass <= 1:
+        proofread = row_passes.get("1", 0)
+        return [
+            (
+                "Pass 1: "
+                f"{_format_count(proofread)} / {_format_count(row_total)} "
+                f"({_format_percent(proofread, row_total)})"
+            )
+        ]
+
+    proofread = row_passes.get(str(current_pass), 0)
+    return [
+        "Pass 1: 100%",
+        (
+            f"Pass {current_pass}: "
+            f"{_format_count(proofread)} / {_format_count(row_total)} "
+            f"({_format_percent(proofread, row_total)})"
+        ),
+    ]
+
+
 def render_readme_block(stats: dict[str, Any]) -> str:
-    bullet_lines = [f"- {line}" for line in format_stats_lines(stats)]
+    bullet_lines = [f"- {line}" for line in format_readme_stats_lines(stats)]
     return "\n".join([_STATS_START, *bullet_lines, _STATS_END])
 
 
