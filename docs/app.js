@@ -17,7 +17,7 @@ const elements = {
     rankSelect: document.getElementById("rank-filter"),
 };
 
-const RANK_OPTIONS = [1000, 5000, 10000, 20000, 30000, 40000, 50000];
+const RANK_OPTIONS = [500, 1000, 3000, 5000, 10000, 20000, 30000, 40000, 50000];
 const STATS_PREFIX = "# mcc-stats:";
 const ERHUA_EXCEPTIONS = new Set([
     "儿",
@@ -315,14 +315,11 @@ function parseFilterValue(value) {
 }
 
 function parseRankValue(value) {
-    if (!value || value === "start") {
+    const parsed = Number.parseInt(value, 10);
+    if (!Number.isFinite(parsed) || parsed <= 1) {
         return { mode: "start" };
     }
-    const parsed = Number.parseInt(value, 10);
-    if (Number.isFinite(parsed) && parsed > 0) {
-        return { mode: "rank", value: parsed };
-    }
-    return { mode: "start" };
+    return { mode: "rank", value: parsed };
 }
 
 function formatRankOptionLabel(value) {
@@ -359,15 +356,15 @@ function updateRankOptions(proofreadCount) {
     }
     const maxCount = Number.isFinite(proofreadCount) ? proofreadCount : 0;
     const values = RANK_OPTIONS.filter((value) => value <= maxCount);
-    const desiredValues = ["start", ...values.map((value) => String(value))];
-    let nextValue = rankState.value || "start";
+    const desiredValues = ["1", ...values.map((value) => String(value))];
+    let nextValue = rankState.value || "1";
     if (!desiredValues.includes(nextValue)) {
-        nextValue = values.length ? String(values[values.length - 1]) : "start";
+        nextValue = values.length ? String(values[values.length - 1]) : "1";
     }
     elements.rankSelect.textContent = "";
     const startOption = document.createElement("option");
-    startOption.value = "start";
-    startOption.textContent = "Start";
+    startOption.value = "1";
+    startOption.textContent = "1";
     elements.rankSelect.appendChild(startOption);
     values.forEach((value) => {
         const option = document.createElement("option");
@@ -557,7 +554,7 @@ function applyLengthFilter(value) {
 }
 
 function applyRankJump(value) {
-    rankState.value = value || "start";
+    rankState.value = value || "1";
     applyFilters();
 }
 
@@ -575,7 +572,7 @@ function initFilters() {
         elements.rankSelect.addEventListener("change", () => {
             applyRankJump(elements.rankSelect.value);
         });
-        rankState.value = elements.rankSelect.value || "start";
+        rankState.value = elements.rankSelect.value || "1";
     }
 }
 
