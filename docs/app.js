@@ -13,7 +13,8 @@ const elements = {
     view: document.getElementById("word-view"),
     header: document.querySelector(".top"),
     footer: document.querySelector(".footer"),
-    filterSelect: document.getElementById("length-filter"),
+    lengthSelect: document.getElementById("length-filter"),
+    rankSelect: document.getElementById("rank-filter"),
 };
 
 const STATS_PREFIX = "# mcc-stats:";
@@ -37,6 +38,7 @@ const dataState = {
     matchCounts: { proofread: 0, total: 0 },
 };
 const filterState = { value: "all" };
+const rankState = { value: "start" };
 const searchState = { query: "", timer: null, matcher: null };
 const pinyinState = { visible: false };
 const layoutState = { rows: 1 };
@@ -312,6 +314,20 @@ function parseFilterValue(value) {
     return { mode: "all" };
 }
 
+function parseRankValue(value) {
+    if (!value || value === "start") {
+        return { mode: "start" };
+    }
+    if (value === "end") {
+        return { mode: "end" };
+    }
+    const parsed = Number.parseInt(value, 10);
+    if (Number.isFinite(parsed) && parsed > 0) {
+        return { mode: "rank", value: parsed };
+    }
+    return { mode: "start" };
+}
+
 function formatFilterLabel(value) {
     if (!value || value === "all") {
         return "All lengths";
@@ -320,6 +336,39 @@ function formatFilterLabel(value) {
         return `${value} chars`;
     }
     return `${value} chars`;
+}
+
+function formatRankLabel(value) {
+    const parsed = parseRankValue(value);
+    if (parsed.mode === "start") {
+        return "";
+    }
+    if (parsed.mode === "end") {
+        return "From end";
+    }
+    if (parsed.value % 1000 === 0) {
+        return `From ${parsed.value / 1000}k`;
+    }
+    return `From ${formatNumber(parsed.value)}`;
+}
+
+function getRankStartIndex(entries, parsed) {
+    if (!entries.length) {
+        return 0;
+    }
+    if (!parsed || parsed.mode === "start") {
+        return 0;
+    }
+    if (parsed.mode === "end") {
+        return Math.max(0, entries.length - renderState.chunkSize);
+    }
+    const index = entries.findIndex(
+        (entry) => entry.rankValue >= parsed.value
+    );
+    if (index === -1) {
+        return Math.max(0, entries.length - renderState.chunkSize);
+    }
+    return index;
 }
 
 function matchesLength(entry, parsed) {
@@ -428,25 +477,31 @@ function buildSearchMatcher(query) {
 function updateStatusText() {
     const base = CONFIG.proofreadOnly ? "Proofread words" : "All words";
     const label = formatFilterLabel(filterState.value);
+    const rankLabel = formatRankLabel(rankState.value);
+    const rankText = rankLabel ? ` • ${rankLabel}` : "";
     const queryLabel = searchState.query ? ` • "${searchState.query}"` : "";
-    setStatus(`${base} • ${label}${queryLabel}`);
+    setStatus(`${base} • ${label}${rankText}${queryLabel}`);
 }
 
 function updateFilterControl() {
-    if (!elements.filterSelect) {
-        return;
+    if (elements.lengthSelect) {
+        if (elements.lengthSelect.value !== filterState.value) {
+            elements.lengthSelect.value = filterState.value;
+        }
     }
-    if (elements.filterSelect.value !== filterState.value) {
-        elements.filterSelect.value = filterState.value;
+    if (elements.rankSelect) {
+        if (elements.rankSelect.value !== rankState.value) {
+            elements.rankSelect.value = rankState.value;
+        }
     }
 }
 
 function applyFilters() {
-    const parsed = parseFilterValue(filterState.value);
+    const lengthParsed = parseFilterValue(filterState.value);
     const displayEntries = [];
     const counts = { proofread: 0, total: 0 };
     for (const entry of dataState.allEntries) {
-        if (!matchesLength(entry, parsed)) {
+        if (!matchesLength(entry, lengthParsed)) {
             continue;
         }
         if (!matchesSearch(entry)) {
@@ -461,28 +516,45 @@ function applyFilters() {
         }
         displayEntries.push(entry);
     }
-    dataState.filteredEntries = displayEntries;
+    setChunkSize();
+    const rankParsed = parseRankValue(rankState.value);
+    const startIndex = getRankStartIndex(displayEntries, rankParsed);
+    const slicedEntries = displayEntries.slice(startIndex);
+    dataState.filteredEntries = slicedEntries;
     dataState.matchCounts = counts;
-    resetRender(displayEntries);
+    resetRender(slicedEntries);
     updateMeta();
     updateStatusText();
     updateFilterControl();
     updateLayout();
 }
 
-function applyFilter(value) {
+function applyLengthFilter(value) {
     filterState.value = value || "all";
     applyFilters();
 }
 
+function applyRankJump(value) {
+    rankState.value = value || "start";
+    applyFilters();
+}
+
 function initFilters() {
-    if (!elements.filterSelect) {
+    if (!elements.lengthSelect && !elements.rankSelect) {
         return;
     }
-    elements.filterSelect.addEventListener("change", () => {
-        applyFilter(elements.filterSelect.value);
-    });
-    filterState.value = elements.filterSelect.value || "all";
+    if (elements.lengthSelect) {
+        elements.lengthSelect.addEventListener("change", () => {
+            applyLengthFilter(elements.lengthSelect.value);
+        });
+        filterState.value = elements.lengthSelect.value || "all";
+    }
+    if (elements.rankSelect) {
+        elements.rankSelect.addEventListener("change", () => {
+            applyRankJump(elements.rankSelect.value);
+        });
+        rankState.value = elements.rankSelect.value || "start";
+    }
 }
 
 function initSearch() {
@@ -876,15 +948,18 @@ async function loadWords() {
         const length = wordLength(word);
         const proofread = isProofreadRow ? isProofreadRow(rowIndex) : true;
         const rankRaw = rows[i][indexIndex];
-        const rank =
+        const rankText =
             rankRaw && String(rankRaw).trim() ? String(rankRaw).trim() : String(i);
+        const rankValue = Number.parseInt(rankText, 10);
+        const safeRankValue = Number.isFinite(rankValue) ? rankValue : i;
         const pinyinRaw =
             pinyinIndex !== null && pinyinIndex < rows[i].length
                 ? rows[i][pinyinIndex]
                 : "";
         const pinyinTokens = parsePinyinTokens(pinyinRaw);
         entries.push({
-            rank,
+            rank: rankText,
+            rankValue: safeRankValue,
             word,
             proofread,
             length,

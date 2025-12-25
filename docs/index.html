@@ -10,7 +10,7 @@
             href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;600&family=Noto+Serif+SC:wght@400;600&display=swap"
             rel="stylesheet"
         />
-        <link rel="stylesheet" href="styles.css?v=28" />
+        <link rel="stylesheet" href="styles.css?v=29" />
     </head>
     <body>
         <header class="top">
@@ -35,8 +35,8 @@
             </div>
             <div class="filters">
                 <div class="filter-controls">
-                    <label class="filter-label" for="length-filter">Length</label>
                     <div class="filter-group">
+                        <label class="filter-label" for="length-filter">Length</label>
                         <select
                             id="length-filter"
                             class="filter-select"
@@ -49,6 +49,25 @@
                             <option value="3">3</option>
                             <option value="4">4</option>
                             <option value="5+">5+</option>
+                        </select>
+                    </div>
+                    <div class="filter-group">
+                        <label class="filter-label" for="rank-filter">Rank</label>
+                        <select
+                            id="rank-filter"
+                            class="filter-select"
+                            name="rank-filter"
+                            aria-label="Jump to rank"
+                        >
+                            <option value="start" selected>Start</option>
+                            <option value="1000">1k</option>
+                            <option value="5000">5k</option>
+                            <option value="10000">10k</option>
+                            <option value="20000">20k</option>
+                            <option value="30000">30k</option>
+                            <option value="40000">40k</option>
+                            <option value="50000">50k</option>
+                            <option value="end">End</option>
                         </select>
                     </div>
                     <button
@@ -72,6 +91,6 @@
                 978-7-100-20011-0.
             </div>
         </footer>
-        <script src="app.js?v=29"></script>
+        <script src="app.js?v=30"></script>
     </body>
 </html>
