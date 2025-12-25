@@ -256,24 +256,31 @@ def build_parser() -> argparse.ArgumentParser:
     )
     stats_parser.set_defaults(func=cmd_stats)
 
-    dx_parser = subparsers.add_parser("dx", help="Diagnostics for merged CSV")
-    dx_subparsers = dx_parser.add_subparsers(dest="dx_command", required=True)
-
-    dx_index_parser = dx_subparsers.add_parser(
-        "index", help="Check proofread index continuity"
-    )
-    dx_index_parser.add_argument(
+    dx_common = argparse.ArgumentParser(add_help=False)
+    dx_common.add_argument(
         "--merged",
         default=default_merged,
         type=Path,
         help="Merged CSV path",
     )
-    dx_index_parser.add_argument(
+    dx_common.add_argument(
         "--csv",
         dest="csv_dir",
         default=repo_root / "post" / "csv",
         type=Path,
         help="Source CSV directory for page/col lookup",
+    )
+
+    dx_parser = subparsers.add_parser(
+        "dx",
+        help="Diagnostics for merged CSV (runs index+duplicates by default)",
+        parents=[dx_common],
+    )
+    dx_parser.set_defaults(func=cmd_dx_default)
+    dx_subparsers = dx_parser.add_subparsers(dest="dx_command", required=False)
+
+    dx_index_parser = dx_subparsers.add_parser(
+        "index", help="Check proofread index continuity", parents=[dx_common]
     )
     dx_index_parser.set_defaults(func=cmd_dx_index)
 
@@ -281,38 +288,14 @@ def build_parser() -> argparse.ArgumentParser:
         "duplicates",
         aliases=["dupicates"],
         help="List duplicate words",
-    )
-    dx_dup_parser.add_argument(
-        "--merged",
-        default=default_merged,
-        type=Path,
-        help="Merged CSV path",
-    )
-    dx_dup_parser.add_argument(
-        "--csv",
-        dest="csv_dir",
-        default=repo_root / "post" / "csv",
-        type=Path,
-        help="Source CSV directory for page/col lookup",
+        parents=[dx_common],
     )
     dx_dup_parser.set_defaults(func=cmd_dx_duplicates)
 
     dx_homophone_parser = dx_subparsers.add_parser(
         "homophone",
         help="List words that share the same pinyin",
-    )
-    dx_homophone_parser.add_argument(
-        "--merged",
-        default=default_merged,
-        type=Path,
-        help="Merged CSV path",
-    )
-    dx_homophone_parser.add_argument(
-        "--csv",
-        dest="csv_dir",
-        default=repo_root / "post" / "csv",
-        type=Path,
-        help="Source CSV directory for page/col lookup",
+        parents=[dx_common],
     )
     tone_group = dx_homophone_parser.add_mutually_exclusive_group()
     tone_group.add_argument(
@@ -331,19 +314,7 @@ def build_parser() -> argparse.ArgumentParser:
     dx_heteronym_parser = dx_subparsers.add_parser(
         "heteronym",
         help="List words with multiple pronunciations",
-    )
-    dx_heteronym_parser.add_argument(
-        "--merged",
-        default=default_merged,
-        type=Path,
-        help="Merged CSV path",
-    )
-    dx_heteronym_parser.add_argument(
-        "--csv",
-        dest="csv_dir",
-        default=repo_root / "post" / "csv",
-        type=Path,
-        help="Source CSV directory for page/col lookup",
+        parents=[dx_common],
     )
     heteronym_tone_group = dx_heteronym_parser.add_mutually_exclusive_group()
     heteronym_tone_group.add_argument(
@@ -363,19 +334,7 @@ def build_parser() -> argparse.ArgumentParser:
         "typo",
         aliases=["type"],
         help="List words missing from CC-CEDICT",
-    )
-    dx_typo_parser.add_argument(
-        "--merged",
-        default=default_merged,
-        type=Path,
-        help="Merged CSV path",
-    )
-    dx_typo_parser.add_argument(
-        "--csv",
-        dest="csv_dir",
-        default=repo_root / "post" / "csv",
-        type=Path,
-        help="Source CSV directory for page/col lookup",
+        parents=[dx_common],
     )
     dx_typo_parser.add_argument(
         "--pinyin",
@@ -485,6 +444,11 @@ def cmd_stats(args: argparse.Namespace) -> None:
     print("\n".join(lines))
     if args.readme is not None:
         update_readme_stats(args.readme, stats)
+
+
+def cmd_dx_default(args: argparse.Namespace) -> None:
+    cmd_dx_index(args)
+    cmd_dx_duplicates(args)
 
 
 def cmd_dx_index(args: argparse.Namespace) -> None:

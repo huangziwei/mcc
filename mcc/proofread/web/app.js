@@ -256,6 +256,18 @@
     }
   }
 
+  async function updateMergedCsv() {
+    if (!state.config || !state.config.merge_output_path) {
+      return true;
+    }
+    try {
+      await fetchJson("/api/merge", { method: "POST" });
+      return true;
+    } catch (error) {
+      return false;
+    }
+  }
+
   async function refreshItems() {
     await refreshItemsServer();
   }
@@ -1207,9 +1219,17 @@
     }
     renderColumnSelect();
     updateProgress();
+    const mergeUpdated = await updateMergedCsv();
     const readmeUpdated = await updateReadmeStats();
+    const warnings = [];
+    if (!mergeUpdated) {
+      warnings.push("merge failed");
+    }
     if (!readmeUpdated) {
-      setStatus(`Saved ${item.base} (README update failed)`, true);
+      warnings.push("README update failed");
+    }
+    if (warnings.length) {
+      setStatus(`Saved ${item.base} (${warnings.join(", ")})`, true);
       return true;
     }
     setStatus(`Saved ${item.base}`);

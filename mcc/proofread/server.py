@@ -14,9 +14,11 @@ import jieba
 from rich.console import Console
 from pycccedict.cccedict import CcCedict
 
+from mcc.merge import merge_csv
 from mcc.stats import collect_stats, update_readme_stats
 
 _README_STATS_LOCK = threading.Lock()
+_MERGE_LOCK = threading.Lock()
 _CCCEDICT_LOCK = threading.Lock()
 _CCCEDICT_WORDS: set[str] | None = None
 _JIEBA_LOCK = threading.Lock()
@@ -114,6 +116,9 @@ class ProofreadRequestHandler(SimpleHTTPRequestHandler):
             return
         if parsed.path == "/api/readme-stats":
             self._handle_api_readme_stats()
+            return
+        if parsed.path == "/api/merge":
+            self._handle_api_merge()
             return
         if parsed.path == "/api/cccedict-check":
             self._handle_api_cccedict_check()
@@ -237,6 +242,57 @@ class ProofreadRequestHandler(SimpleHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(payload)
 
+    def _handle_api_merge(self) -> None:
+        if self._repo_root is None:
+            self.send_error(500, "Server not configured")
+            return
+        config = self._config or {}
+        csv_dir_value = config.get("default_csv_dir") or "post/csv"
+        meta_dir_value = config.get("default_meta_dir") or "post/meta"
+        out_value = (
+            config.get("merge_output_path")
+            or "post/merged/modern-chinese-common-words.csv"
+        )
+
+        csv_dir = self._resolve_path(csv_dir_value, allow_write=False)
+        meta_dir = self._resolve_path(meta_dir_value, allow_write=False)
+        out_path = self._resolve_path(out_value, allow_write=True)
+        if not csv_dir or not meta_dir or not out_path:
+            self.send_error(403, "Merge paths not allowed")
+            return
+
+        if not _MERGE_LOCK.acquire(blocking=False):
+            payload = json.dumps({"status": "busy"}).encode("utf-8")
+            self.send_response(202)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(payload)))
+            self.end_headers()
+            self.wfile.write(payload)
+            return
+
+        try:
+            merge_csv(
+                csv_dir=csv_dir,
+                meta_dir=meta_dir,
+                out_path=out_path,
+                stats_mode="comments",
+            )
+        except SystemExit as exc:
+            self.send_error(400, str(exc))
+            return
+        except Exception:
+            self.send_error(500, "Failed to merge CSV")
+            return
+        finally:
+            _MERGE_LOCK.release()
+
+        payload = json.dumps({"status": "ok"}).encode("utf-8")
+        self.send_response(200)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(payload)))
+        self.end_headers()
+        self.wfile.write(payload)
+
     def _handle_api_cccedict_check(self) -> None:
         content_length = int(self.headers.get("Content-Length", "0"))
         data = self.rfile.read(content_length)
@@ -318,6 +374,7 @@ def run_proofread_server(
         "default_csv_dir": "post/csv",
         "default_meta_dir": "post/meta",
         "default_columns_dir": "pre/columns",
+        "merge_output_path": "post/merged/modern-chinese-common-words.csv",
         "readme_stats_path": "README.md",
         "server_mode": True,
     }
