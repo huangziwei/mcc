@@ -5,7 +5,7 @@ WIP. Preview: http://hzwei.dev/mcc/
 ### Proofreading Progress
 
 <!-- mcc:stats:start -->
-- Pass 1: 28,535 / 56,923 (50.1%)
+- Pass 1: 29,084 / 56,920 (51.1%)
 <!-- mcc:stats:end -->
 
 ### Usage
@@ -13,10 +13,14 @@ WIP. Preview: http://hzwei.dev/mcc/
 ```bash
 uv sync
 
+# tools for preprocessing raw data
 mcc render # extract all pages
 mcc segment # split each page by column
 mcc ocr # ocr each page and save as csv to post/csv
+
+# tools for proofreading and releasing
 mcc proofread # launch the proofreading web app
+mcc dx [index | duplicates] # diagnostics 
 mcc merge # create or update the complete word list
 mcc publish # generate the static site in docs/
 ```
