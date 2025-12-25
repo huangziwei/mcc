@@ -18,7 +18,6 @@ from mcc.dx import (
     find_typo_words,
 )
 from mcc.merge import merge_csv
-from mcc.publish import DEFAULT_CSV_URL, DEFAULT_TITLE, publish_site
 from mcc.preprocess.ocr import ocr_columns
 from mcc.preprocess.render import render_pages
 from mcc.preprocess.segment import segment_pages
@@ -207,27 +206,6 @@ def build_parser() -> argparse.ArgumentParser:
         help="Write stats header comments",
     )
     merge_parser.set_defaults(func=cmd_merge)
-
-    publish_parser = subparsers.add_parser(
-        "publish", help="Generate static site for GitHub Pages"
-    )
-    publish_parser.add_argument(
-        "--site-dir",
-        default=repo_root / "docs",
-        type=Path,
-        help="Output directory for the published site",
-    )
-    publish_parser.add_argument(
-        "--csv-url",
-        default=DEFAULT_CSV_URL,
-        help="Merged CSV URL for the published site",
-    )
-    publish_parser.add_argument(
-        "--title",
-        default=DEFAULT_TITLE,
-        help="Site title for the published site",
-    )
-    publish_parser.set_defaults(func=cmd_publish)
 
     stats_parser = subparsers.add_parser(
         "stats", help="Show proofreading progress stats"
@@ -427,14 +405,6 @@ def cmd_merge(args: argparse.Namespace) -> None:
         meta_dir=args.meta_dir,
         out_path=args.out,
         stats_mode=args.stats,
-    )
-
-
-def cmd_publish(args: argparse.Namespace) -> None:
-    publish_site(
-        site_dir=args.site_dir,
-        csv_url=args.csv_url,
-        title=args.title,
     )
 
 

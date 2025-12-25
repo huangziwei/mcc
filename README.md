@@ -22,7 +22,6 @@ mcc ocr # ocr each page and save as csv to post/csv
 mcc proofread # launch the proofreading web app
 mcc dx [index | duplicates] # diagnostics 
 mcc merge # create or update the complete word list
-mcc publish # generate the static site in docs/
 ```
 
 ### Source Material
