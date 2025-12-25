@@ -17,6 +17,7 @@ const elements = {
     rankSelect: document.getElementById("rank-filter"),
 };
 
+const RANK_OPTIONS = [1000, 5000, 10000, 20000, 30000, 40000, 50000];
 const STATS_PREFIX = "# mcc-stats:";
 const ERHUA_EXCEPTIONS = new Set([
     "儿",
@@ -38,7 +39,7 @@ const dataState = {
     matchCounts: { proofread: 0, total: 0 },
 };
 const filterState = { value: "all" };
-const rankState = { value: "start" };
+const rankState = { value: "1" };
 const searchState = { query: "", timer: null, matcher: null };
 const pinyinState = { visible: false };
 const layoutState = { rows: 1 };
@@ -55,7 +56,9 @@ function formatNumber(value) {
 }
 
 function normalizeQuery(value) {
-    return String(value || "").trim().toLowerCase();
+    return String(value || "")
+        .trim()
+        .toLowerCase();
 }
 
 const TONE_MARKS = {
@@ -87,12 +90,13 @@ const TONE_MARKS = {
 const TONE_MARK_RE = /[āáǎàēéěèīíǐìōóǒòūúǔùǖǘǚǜ]/;
 const TONE_DIGIT_RE = /[1-5]/;
 const CJK_RE = /[\u3400-\u9fff]/;
-const PINYIN_ALLOWED_RE =
-    /^[a-zāáǎàēéěèīíǐìōóǒòūúǔùǖǘǚǜüv\s*?'\d]+$/i;
+const PINYIN_ALLOWED_RE = /^[a-zāáǎàēéěèīíǐìōóǒòūúǔùǖǘǚǜüv\s*?'\d]+$/i;
 const PINYIN_VOWEL_RE = /[aeiouüvāáǎàēéěèīíǐìōóǒòūúǔùǖǘǚǜ]/i;
 
 function normalizePattern(value) {
-    return String(value || "").replace(/？/g, "?").replace(/＊/g, "*");
+    return String(value || "")
+        .replace(/？/g, "?")
+        .replace(/＊/g, "*");
 }
 
 function isLikelyPinyin(value) {
@@ -123,11 +127,7 @@ function detectPinyinMode(value) {
 }
 
 function normalizePinyinMarks(value) {
-    return normalizePattern(value)
-        .toLowerCase()
-        .replace(/v/g, "ü")
-        .replace(/\s+/g, " ")
-        .trim();
+    return normalizePattern(value).toLowerCase().replace(/v/g, "ü").replace(/\s+/g, " ").trim();
 }
 
 function normalizePinyinPlain(value) {
@@ -318,14 +318,18 @@ function parseRankValue(value) {
     if (!value || value === "start") {
         return { mode: "start" };
     }
-    if (value === "end") {
-        return { mode: "end" };
-    }
     const parsed = Number.parseInt(value, 10);
     if (Number.isFinite(parsed) && parsed > 0) {
         return { mode: "rank", value: parsed };
     }
     return { mode: "start" };
+}
+
+function formatRankOptionLabel(value) {
+    if (value % 1000 === 0) {
+        return `${value / 1000}k`;
+    }
+    return formatNumber(value);
 }
 
 function formatFilterLabel(value) {
@@ -343,13 +347,36 @@ function formatRankLabel(value) {
     if (parsed.mode === "start") {
         return "";
     }
-    if (parsed.mode === "end") {
-        return "From end";
-    }
     if (parsed.value % 1000 === 0) {
         return `From ${parsed.value / 1000}k`;
     }
     return `From ${formatNumber(parsed.value)}`;
+}
+
+function updateRankOptions(proofreadCount) {
+    if (!elements.rankSelect) {
+        return;
+    }
+    const maxCount = Number.isFinite(proofreadCount) ? proofreadCount : 0;
+    const values = RANK_OPTIONS.filter((value) => value <= maxCount);
+    const desiredValues = ["start", ...values.map((value) => String(value))];
+    let nextValue = rankState.value || "start";
+    if (!desiredValues.includes(nextValue)) {
+        nextValue = values.length ? String(values[values.length - 1]) : "start";
+    }
+    elements.rankSelect.textContent = "";
+    const startOption = document.createElement("option");
+    startOption.value = "start";
+    startOption.textContent = "Start";
+    elements.rankSelect.appendChild(startOption);
+    values.forEach((value) => {
+        const option = document.createElement("option");
+        option.value = String(value);
+        option.textContent = formatRankOptionLabel(value);
+        elements.rankSelect.appendChild(option);
+    });
+    rankState.value = nextValue;
+    elements.rankSelect.value = nextValue;
 }
 
 function getRankStartIndex(entries, parsed) {
@@ -359,12 +386,7 @@ function getRankStartIndex(entries, parsed) {
     if (!parsed || parsed.mode === "start") {
         return 0;
     }
-    if (parsed.mode === "end") {
-        return Math.max(0, entries.length - renderState.chunkSize);
-    }
-    const index = entries.findIndex(
-        (entry) => entry.rankValue >= parsed.value
-    );
+    const index = entries.findIndex((entry) => entry.rankValue >= parsed.value);
     if (index === -1) {
         return Math.max(0, entries.length - renderState.chunkSize);
     }
@@ -398,8 +420,7 @@ function matchGlob(text, pattern) {
     while (tIndex < textChars.length) {
         if (
             pIndex < patternChars.length &&
-            (patternChars[pIndex] === "?" ||
-                patternChars[pIndex] === textChars[tIndex])
+            (patternChars[pIndex] === "?" || patternChars[pIndex] === textChars[tIndex])
         ) {
             tIndex += 1;
             pIndex += 1;
@@ -462,8 +483,8 @@ function buildSearchMatcher(query) {
         pinyinMode === "digits"
             ? normalizePinyinDigits
             : pinyinMode === "marks"
-              ? normalizePinyinMarks
-              : normalizePinyinPlain;
+            ? normalizePinyinMarks
+            : normalizePinyinPlain;
     const normalizedQuery = normalizer(term);
     if (!normalizedQuery) {
         return null;
@@ -517,6 +538,7 @@ function applyFilters() {
         displayEntries.push(entry);
     }
     setChunkSize();
+    updateRankOptions(counts.proofread);
     const rankParsed = parseRankValue(rankState.value);
     const startIndex = getRankStartIndex(displayEntries, rankParsed);
     const slicedEntries = displayEntries.slice(startIndex);
@@ -577,10 +599,7 @@ function updatePinyinToggle() {
     }
     const isActive = pinyinState.visible;
     elements.pinyinToggle.classList.toggle("is-active", isActive);
-    elements.pinyinToggle.setAttribute(
-        "aria-pressed",
-        isActive ? "true" : "false"
-    );
+    elements.pinyinToggle.setAttribute("aria-pressed", isActive ? "true" : "false");
     elements.grid.classList.toggle("show-pinyin", isActive);
 }
 
@@ -716,10 +735,9 @@ function createRangeChecker(ranges) {
 
 function updateMeta() {
     const { proofread, total } = dataState.matchCounts;
-    elements.count.textContent = `Proofread: ${formatPercent(
-        proofread,
-        total
-    )} (${formatNumber(proofread)} / ${formatNumber(total)})`;
+    elements.count.textContent = `Proofread: ${formatPercent(proofread, total)} (${formatNumber(
+        proofread
+    )} / ${formatNumber(total)})`;
 }
 
 function setChunkSize() {
@@ -733,10 +751,7 @@ function renderNextChunk() {
         return;
     }
     const start = renderState.rendered;
-    const end = Math.min(
-        start + renderState.chunkSize,
-        renderState.entries.length
-    );
+    const end = Math.min(start + renderState.chunkSize, renderState.entries.length);
     const fragment = document.createDocumentFragment();
     for (let i = start; i < end; i += 1) {
         const entry = renderState.entries[i];
@@ -784,19 +799,12 @@ function shouldLoadMore() {
         return false;
     }
     const threshold = Math.max(elements.view.clientWidth * 0.6, 320);
-    return (
-        elements.view.scrollLeft + elements.view.clientWidth >=
-        elements.view.scrollWidth - threshold
-    );
+    return elements.view.scrollLeft + elements.view.clientWidth >= elements.view.scrollWidth - threshold;
 }
 
 function maybeRenderMore() {
     let safety = 0;
-    while (
-        shouldLoadMore() &&
-        renderState.rendered < renderState.entries.length &&
-        safety < 6
-    ) {
+    while (shouldLoadMore() && renderState.rendered < renderState.entries.length && safety < 6) {
         renderNextChunk();
         safety += 1;
     }
@@ -845,53 +853,31 @@ function getRowHeight() {
     probe.style.width = "1px";
     probe.style.pointerEvents = "none";
     document.body.appendChild(probe);
-    const height =
-        probe.getBoundingClientRect().height || probe.offsetHeight || 0;
+    const height = probe.getBoundingClientRect().height || probe.offsetHeight || 0;
     probe.remove();
     return height || 32;
 }
 
 function updateLayout() {
-    const viewportHeight =
-        document.documentElement.clientHeight || window.innerHeight;
-    const visualHeight = window.visualViewport
-        ? window.visualViewport.height
-        : viewportHeight;
+    const viewportHeight = document.documentElement.clientHeight || window.innerHeight;
+    const visualHeight = window.visualViewport ? window.visualViewport.height : viewportHeight;
     const appHeight = Math.min(visualHeight, viewportHeight);
     document.documentElement.style.setProperty("--app-height", `${appHeight}px`);
-    const headerHeight = elements.header
-        ? elements.header.getBoundingClientRect().height
-        : 0;
-    const footerHeight = elements.footer
-        ? elements.footer.getBoundingClientRect().height
-        : 0;
-    document.documentElement.style.setProperty(
-        "--header-height",
-        `${headerHeight}px`
-    );
-    document.documentElement.style.setProperty(
-        "--footer-height",
-        `${footerHeight}px`
-    );
+    const headerHeight = elements.header ? elements.header.getBoundingClientRect().height : 0;
+    const footerHeight = elements.footer ? elements.footer.getBoundingClientRect().height : 0;
+    document.documentElement.style.setProperty("--header-height", `${headerHeight}px`);
+    document.documentElement.style.setProperty("--footer-height", `${footerHeight}px`);
     const rowHeight = getRowHeight();
     const viewStyles = elements.view ? getComputedStyle(elements.view) : null;
-    const paddingTop = viewStyles
-        ? Number.parseFloat(viewStyles.paddingTop) || 0
-        : 0;
+    const paddingTop = viewStyles ? Number.parseFloat(viewStyles.paddingTop) || 0 : 0;
     const viewHeight = elements.view
         ? elements.view.getBoundingClientRect().height
         : Math.max(1, appHeight - headerHeight - footerHeight);
     const available = Math.max(1, viewHeight - paddingTop);
     const rows = Math.max(1, Math.floor(available / rowHeight));
-    const nextPaddingBottom = Math.max(
-        0,
-        viewHeight - paddingTop - rows * rowHeight
-    );
+    const nextPaddingBottom = Math.max(0, viewHeight - paddingTop - rows * rowHeight);
     if (elements.view) {
-        elements.view.style.paddingBottom = `${Math.max(
-            0,
-            nextPaddingBottom
-        )}px`;
+        elements.view.style.paddingBottom = `${Math.max(0, nextPaddingBottom)}px`;
     }
     layoutState.rows = rows;
     elements.grid.style.setProperty("--rows", rows);
@@ -948,14 +934,10 @@ async function loadWords() {
         const length = wordLength(word);
         const proofread = isProofreadRow ? isProofreadRow(rowIndex) : true;
         const rankRaw = rows[i][indexIndex];
-        const rankText =
-            rankRaw && String(rankRaw).trim() ? String(rankRaw).trim() : String(i);
+        const rankText = rankRaw && String(rankRaw).trim() ? String(rankRaw).trim() : String(i);
         const rankValue = Number.parseInt(rankText, 10);
         const safeRankValue = Number.isFinite(rankValue) ? rankValue : i;
-        const pinyinRaw =
-            pinyinIndex !== null && pinyinIndex < rows[i].length
-                ? rows[i][pinyinIndex]
-                : "";
+        const pinyinRaw = pinyinIndex !== null && pinyinIndex < rows[i].length ? rows[i][pinyinIndex] : "";
         const pinyinTokens = parsePinyinTokens(pinyinRaw);
         entries.push({
             rank: rankText,

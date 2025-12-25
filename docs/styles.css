@@ -147,21 +147,23 @@ body::before {
   letter-spacing: 0.16em;
   color: var(--muted);
   line-height: 1;
+  align-self: stretch;
+  text-align: center;
 }
 
 .filter-controls {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
-  align-items: center;
+  align-items: flex-end;
   justify-content: flex-end;
 }
 
 .filter-group {
   display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  align-items: center;
+  flex-direction: column;
+  gap: 4px;
+  align-items: flex-start;
   justify-content: flex-end;
 }
 
@@ -383,10 +385,12 @@ body::before {
 
   .filter-controls {
     justify-content: flex-start;
+    align-items: flex-end;
   }
 
   .filter-group {
     justify-content: flex-start;
+    align-items: flex-start;
   }
 
   .search-input {
