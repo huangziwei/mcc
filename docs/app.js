@@ -13,7 +13,7 @@ const elements = {
     view: document.getElementById("word-view"),
     header: document.querySelector(".top"),
     footer: document.querySelector(".footer"),
-    filterButtons: Array.from(document.querySelectorAll("[data-length-filter]")),
+    filterSelect: document.getElementById("length-filter"),
 };
 
 const STATS_PREFIX = "# mcc-stats:";
@@ -432,12 +432,13 @@ function updateStatusText() {
     setStatus(`${base} • ${label}${queryLabel}`);
 }
 
-function updateFilterButtons() {
-    elements.filterButtons.forEach((button) => {
-        const isActive = button.dataset.lengthFilter === filterState.value;
-        button.classList.toggle("is-active", isActive);
-        button.setAttribute("aria-pressed", isActive ? "true" : "false");
-    });
+function updateFilterControl() {
+    if (!elements.filterSelect) {
+        return;
+    }
+    if (elements.filterSelect.value !== filterState.value) {
+        elements.filterSelect.value = filterState.value;
+    }
 }
 
 function applyFilters() {
@@ -465,7 +466,7 @@ function applyFilters() {
     resetRender(displayEntries);
     updateMeta();
     updateStatusText();
-    updateFilterButtons();
+    updateFilterControl();
     updateLayout();
 }
 
@@ -475,18 +476,13 @@ function applyFilter(value) {
 }
 
 function initFilters() {
-    if (!elements.filterButtons.length) {
+    if (!elements.filterSelect) {
         return;
     }
-    elements.filterButtons.forEach((button) => {
-        button.addEventListener("click", () => {
-            applyFilter(button.dataset.lengthFilter);
-        });
+    elements.filterSelect.addEventListener("change", () => {
+        applyFilter(elements.filterSelect.value);
     });
-    const active = elements.filterButtons.find((button) =>
-        button.classList.contains("is-active")
-    );
-    filterState.value = active ? active.dataset.lengthFilter : "all";
+    filterState.value = elements.filterSelect.value || "all";
 }
 
 function initSearch() {

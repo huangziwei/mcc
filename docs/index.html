@@ -35,16 +35,21 @@
             </div>
             <div class="filters">
                 <div class="filter-controls">
-                    <div class="filter-label">Length</div>
-                    <div class="filter-group" role="group" aria-label="Filter by word length">
-                        <button class="filter-btn is-active" type="button" data-length-filter="all">
-                            All
-                        </button>
-                        <button class="filter-btn" type="button" data-length-filter="1">1</button>
-                        <button class="filter-btn" type="button" data-length-filter="2">2</button>
-                        <button class="filter-btn" type="button" data-length-filter="3">3</button>
-                        <button class="filter-btn" type="button" data-length-filter="4">4</button>
-                        <button class="filter-btn" type="button" data-length-filter="5+">5+</button>
+                    <label class="filter-label" for="length-filter">Length</label>
+                    <div class="filter-group">
+                        <select
+                            id="length-filter"
+                            class="filter-select"
+                            name="length-filter"
+                            aria-label="Filter by word length"
+                        >
+                            <option value="all" selected>All</option>
+                            <option value="1">1</option>
+                            <option value="2">2</option>
+                            <option value="3">3</option>
+                            <option value="4">4</option>
+                            <option value="5+">5+</option>
+                        </select>
                     </div>
                     <button
                         id="pinyin-toggle"
