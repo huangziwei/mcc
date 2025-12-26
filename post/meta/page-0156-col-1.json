@@ -1,0 +1,15 @@
+{
+  "source_csv": "page-0156-col-1.csv",
+  "source_image": "page-0156-col-1.png",
+  "proofread_pass": 1,
+  "proofread_level": "pass-1",
+  "proofread_by": "_hzw",
+  "proofread_started_at": "2025-12-26T15:12",
+  "proofread_completed_at": "2025-12-26T15:17",
+  "notes": null,
+  "columns": [
+    "index",
+    "word",
+    "pinyin"
+  ]
+}
