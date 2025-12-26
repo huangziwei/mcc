@@ -36,6 +36,7 @@ const dataState = {
     stats: null,
     allEntries: [],
     filteredEntries: [],
+    wordLookup: new Map(),
     matchCounts: { proofread: 0, total: 0 },
 };
 const filterState = { value: "all" };
@@ -44,6 +45,15 @@ const searchState = { query: "", timer: null, matcher: null };
 const pinyinState = { visible: false };
 const layoutState = { rows: 1 };
 const renderState = { entries: [], rendered: 0, chunkSize: 400 };
+const selectionMenuState = {
+    menu: null,
+    copyWordButton: null,
+    copyPinyinButton: null,
+    searchButton: null,
+    word: "",
+    pinyin: "",
+    timer: null,
+};
 let scrollTicking = false;
 
 function setStatus(message, isError = false) {
@@ -59,6 +69,209 @@ function normalizeQuery(value) {
     return String(value || "")
         .trim()
         .toLowerCase();
+}
+
+function createSelectionMenuButton(label) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "selection-menu-btn";
+    button.textContent = label;
+    return button;
+}
+
+async function copyToClipboard(text) {
+    const value = String(text || "");
+    if (!value) {
+        return false;
+    }
+    if (navigator.clipboard && window.isSecureContext) {
+        try {
+            await navigator.clipboard.writeText(value);
+            return true;
+        } catch (error) {
+            return false;
+        }
+    }
+    const textarea = document.createElement("textarea");
+    textarea.value = value;
+    textarea.setAttribute("readonly", "true");
+    textarea.style.position = "fixed";
+    textarea.style.top = "-9999px";
+    document.body.appendChild(textarea);
+    textarea.select();
+    let success = false;
+    try {
+        success = document.execCommand("copy");
+    } catch (error) {
+        success = false;
+    }
+    document.body.removeChild(textarea);
+    return success;
+}
+
+function getClosestWordElement(node) {
+    if (!node) {
+        return null;
+    }
+    const element = node.nodeType === Node.ELEMENT_NODE ? node : node.parentElement;
+    if (!element) {
+        return null;
+    }
+    return element.closest(".word");
+}
+
+function getSelectionContext() {
+    if (!elements.view) {
+        return null;
+    }
+    const selection = window.getSelection();
+    if (!selection || selection.isCollapsed || selection.rangeCount === 0) {
+        return null;
+    }
+    const range = selection.getRangeAt(0);
+    if (!elements.view.contains(range.commonAncestorContainer)) {
+        return null;
+    }
+    const text = selection.toString().trim();
+    if (!text) {
+        return null;
+    }
+    const rect = range.getBoundingClientRect();
+    if (!rect || (rect.width === 0 && rect.height === 0)) {
+        return null;
+    }
+    const anchorWord = getClosestWordElement(selection.anchorNode);
+    const focusWord = getClosestWordElement(selection.focusNode);
+    const wordElement = anchorWord && anchorWord === focusWord ? anchorWord : null;
+    let word = text;
+    let pinyin = "";
+    if (wordElement) {
+        const dataWord = wordElement.dataset.word || "";
+        const dataPinyin = wordElement.dataset.pinyin || "";
+        if (dataWord) {
+            word = dataWord;
+        }
+        pinyin = dataPinyin.trim();
+    } else if (dataState.wordLookup && dataState.wordLookup.has(text)) {
+        const entry = dataState.wordLookup.get(text);
+        pinyin = entry && entry.pinyin ? entry.pinyin.trim() : "";
+    }
+    return { word, pinyin, rect };
+}
+
+function positionSelectionMenu(rect) {
+    const menu = selectionMenuState.menu;
+    if (!menu || !rect) {
+        return;
+    }
+    const menuRect = menu.getBoundingClientRect();
+    const padding = 12;
+    let x = rect.left + rect.width / 2 - menuRect.width / 2;
+    let y = rect.top - menuRect.height - 10;
+    if (y < padding) {
+        y = rect.bottom + 10;
+    }
+    x = Math.min(Math.max(x, padding), window.innerWidth - menuRect.width - padding);
+    y = Math.min(Math.max(y, padding), window.innerHeight - menuRect.height - padding);
+    menu.style.left = `${x}px`;
+    menu.style.top = `${y}px`;
+}
+
+function showSelectionMenu() {
+    if (!selectionMenuState.menu) {
+        return;
+    }
+    selectionMenuState.menu.classList.add("is-visible");
+}
+
+function hideSelectionMenu() {
+    if (!selectionMenuState.menu) {
+        return;
+    }
+    selectionMenuState.menu.classList.remove("is-visible");
+    selectionMenuState.word = "";
+    selectionMenuState.pinyin = "";
+}
+
+function updateSelectionMenu() {
+    const context = getSelectionContext();
+    if (!context || !selectionMenuState.menu) {
+        hideSelectionMenu();
+        return;
+    }
+    selectionMenuState.word = context.word;
+    selectionMenuState.pinyin = context.pinyin;
+    if (selectionMenuState.copyPinyinButton) {
+        selectionMenuState.copyPinyinButton.hidden = !context.pinyin;
+    }
+    positionSelectionMenu(context.rect);
+    showSelectionMenu();
+}
+
+function scheduleSelectionMenuUpdate() {
+    if (selectionMenuState.timer) {
+        window.clearTimeout(selectionMenuState.timer);
+    }
+    selectionMenuState.timer = window.setTimeout(() => {
+        selectionMenuState.timer = null;
+        updateSelectionMenu();
+    }, 30);
+}
+
+function initSelectionMenu() {
+    if (!document.body) {
+        return;
+    }
+    const menu = document.createElement("div");
+    menu.className = "selection-menu";
+    const copyWordButton = createSelectionMenuButton("Copy word");
+    const copyPinyinButton = createSelectionMenuButton("Copy pinyin");
+    const searchButton = createSelectionMenuButton("Search zdic.net");
+    menu.appendChild(copyWordButton);
+    menu.appendChild(copyPinyinButton);
+    menu.appendChild(searchButton);
+    document.body.appendChild(menu);
+    selectionMenuState.menu = menu;
+    selectionMenuState.copyWordButton = copyWordButton;
+    selectionMenuState.copyPinyinButton = copyPinyinButton;
+    selectionMenuState.searchButton = searchButton;
+
+    copyWordButton.addEventListener("click", async () => {
+        await copyToClipboard(selectionMenuState.word);
+        hideSelectionMenu();
+    });
+    copyPinyinButton.addEventListener("click", async () => {
+        if (!selectionMenuState.pinyin) {
+            return;
+        }
+        await copyToClipboard(selectionMenuState.pinyin);
+        hideSelectionMenu();
+    });
+    searchButton.addEventListener("click", () => {
+        if (!selectionMenuState.word) {
+            return;
+        }
+        const url = `https://www.zdic.net/hans/${encodeURIComponent(selectionMenuState.word)}`;
+        window.open(url, "_blank", "noopener");
+        hideSelectionMenu();
+    });
+
+    document.addEventListener("selectionchange", scheduleSelectionMenuUpdate);
+    document.addEventListener("mouseup", scheduleSelectionMenuUpdate);
+    document.addEventListener("touchend", scheduleSelectionMenuUpdate);
+    document.addEventListener("keydown", (event) => {
+        if (event.key === "Escape") {
+            hideSelectionMenu();
+        }
+    });
+    document.addEventListener("pointerdown", (event) => {
+        if (selectionMenuState.menu && !selectionMenuState.menu.contains(event.target)) {
+            hideSelectionMenu();
+        }
+    });
+    if (elements.view) {
+        elements.view.addEventListener("scroll", hideSelectionMenu, { passive: true });
+    }
 }
 
 const TONE_MARKS = {
@@ -754,6 +967,8 @@ function renderNextChunk() {
         const entry = renderState.entries[i];
         const div = document.createElement("div");
         div.className = "word";
+        div.dataset.word = entry.word;
+        div.dataset.pinyin = entry.pinyin || "";
         const indexSpan = document.createElement("span");
         indexSpan.className = "word-index";
         indexSpan.textContent = entry.rank;
@@ -955,11 +1170,13 @@ async function init() {
     initFilters();
     initPinyinToggle();
     initSearch();
+    initSelectionMenu();
     updateLayout();
     if (elements.view) {
         elements.view.addEventListener("scroll", onScroll, { passive: true });
     }
     window.addEventListener("resize", () => {
+        hideSelectionMenu();
         window.clearTimeout(window.__mccResizeTimer);
         window.__mccResizeTimer = window.setTimeout(updateLayout, 150);
     });
@@ -970,6 +1187,7 @@ async function init() {
         const { stats, entries } = await loadWords();
         dataState.stats = stats;
         dataState.allEntries = entries;
+        dataState.wordLookup = new Map(entries.map((entry) => [entry.word, entry]));
         applyFilters();
         updateLayout();
     } catch (error) {
