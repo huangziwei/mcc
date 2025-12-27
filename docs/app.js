@@ -1140,9 +1140,6 @@ async function loadWords() {
     for (let i = 1; i < rows.length; i += 1) {
         const rowIndex = i;
         const word = (rows[i][wordIndex] || "").trim();
-        if (!word) {
-            continue;
-        }
         const length = wordLength(word);
         const proofread = isProofreadRow ? isProofreadRow(rowIndex) : true;
         const rankRaw = rows[i][indexIndex];
