@@ -5,7 +5,7 @@ WIP. Preview: http://hzwei.dev/mcc/
 ### Proofreading Progress
 
 <!-- mcc:stats:start -->
-- Pass 1: 50,979 / 56,835 (89.7%)
+- Pass 1: 51,208 / 56,834 (90.1%)
 <!-- mcc:stats:end -->
 
 ### Usage
