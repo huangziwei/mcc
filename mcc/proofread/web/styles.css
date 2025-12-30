@@ -1,18 +1,51 @@
 :root {
+  color-scheme: light;
   --bg: #f4efe7;
   --panel: #fffaf3;
   --ink: #1f1d1b;
   --muted: #6a6158;
   --accent: #f08a4b;
   --accent-dark: #d26d2f;
+  --accent-ink: #1f1308;
   --border: #e3d8ca;
   --warn-bg: #ffe4dd;
   --warn-border: #f2b8a4;
   --single-bg: #fff1c7;
   --single-border: #f5c47b;
+  --body-bg: radial-gradient(circle at top, #fff5e6 0%, #f7efe6 45%, #f1e9dd 100%);
+  --control-bg: #fff;
+  --table-head-bg: #f7efe0;
+  --image-frame-bg: #fffdf8;
+  --accent-glow: rgba(240, 138, 75, 0.2);
+  --accent-glow-strong: rgba(240, 138, 75, 0.35);
   --shadow: 0 10px 30px rgba(33, 23, 8, 0.08);
   --pane-height: 70vh;
   --pane-height-compact: 50vh;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    color-scheme: dark;
+    --bg: #181411;
+    --panel: #221c18;
+    --ink: #f4eadf;
+    --muted: #b9aa9a;
+    --accent: #f2a15b;
+    --accent-dark: #d07a35;
+    --accent-ink: #1b1109;
+    --border: #3b312a;
+    --warn-bg: #40231c;
+    --warn-border: #a3644a;
+    --single-bg: #3a2c18;
+    --single-border: #b88436;
+    --body-bg: radial-gradient(circle at top, #2a231e 0%, #1e1915 45%, #17120f 100%);
+    --control-bg: #2a231e;
+    --table-head-bg: #2f261f;
+    --image-frame-bg: #1c1714;
+    --accent-glow: rgba(242, 161, 91, 0.25);
+    --accent-glow-strong: rgba(242, 161, 91, 0.45);
+    --shadow: 0 12px 30px rgba(0, 0, 0, 0.45);
+  }
 }
 
 * {
@@ -24,7 +57,8 @@ body {
   min-height: 100vh;
   font-family: "Avenir Next", "Avenir", "Helvetica Neue", sans-serif;
   color: var(--ink);
-  background: radial-gradient(circle at top, #fff5e6 0%, #f7efe6 45%, #f1e9dd 100%);
+  background-color: var(--bg);
+  background-image: var(--body-bg);
   display: flex;
   flex-direction: column;
 }
@@ -87,18 +121,18 @@ textarea {
   border: 1px solid var(--border);
   border-radius: 8px;
   padding: 6px 10px;
-  background: #fff;
+  background: var(--control-bg);
 }
 
 button {
   cursor: pointer;
-  background: #fff;
+  background: var(--control-bg);
   transition: transform 0.1s ease, box-shadow 0.1s ease, border-color 0.1s ease;
 }
 
 button:hover {
   border-color: var(--accent);
-  box-shadow: 0 6px 16px rgba(240, 138, 75, 0.2);
+  box-shadow: 0 6px 16px var(--accent-glow);
 }
 
 button:active {
@@ -113,13 +147,13 @@ button:disabled {
 
 button.primary {
   background: var(--accent);
-  color: #1f1308;
+  color: var(--accent-ink);
   border-color: var(--accent-dark);
   font-weight: 600;
 }
 
 button.primary:hover {
-  box-shadow: 0 8px 18px rgba(240, 138, 75, 0.35);
+  box-shadow: 0 8px 18px var(--accent-glow-strong);
 }
 
 .layout {
@@ -227,7 +261,7 @@ button.primary:hover {
 }
 
 .table-container th {
-  background: #f7efe0;
+  background: var(--table-head-bg);
   position: sticky;
   top: 0;
   z-index: 2;
@@ -277,7 +311,7 @@ button.primary:hover {
   border: 1px dashed var(--border);
   border-radius: 12px;
   overflow: auto;
-  background: #fffdf8;
+  background: var(--image-frame-bg);
   display: flex;
   align-items: flex-start;
   justify-content: flex-start;
