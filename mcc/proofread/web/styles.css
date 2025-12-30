@@ -24,7 +24,7 @@
 }
 
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme]) {
     color-scheme: dark;
     --bg: #181411;
     --panel: #221c18;
@@ -46,6 +46,29 @@
     --accent-glow-strong: rgba(242, 161, 91, 0.45);
     --shadow: 0 12px 30px rgba(0, 0, 0, 0.45);
   }
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #181411;
+  --panel: #221c18;
+  --ink: #f4eadf;
+  --muted: #b9aa9a;
+  --accent: #f2a15b;
+  --accent-dark: #d07a35;
+  --accent-ink: #1b1109;
+  --border: #3b312a;
+  --warn-bg: #40231c;
+  --warn-border: #a3644a;
+  --single-bg: #3a2c18;
+  --single-border: #b88436;
+  --body-bg: radial-gradient(circle at top, #2a231e 0%, #1e1915 45%, #17120f 100%);
+  --control-bg: #2a231e;
+  --table-head-bg: #2f261f;
+  --image-frame-bg: #1c1714;
+  --accent-glow: rgba(242, 161, 91, 0.25);
+  --accent-glow-strong: rgba(242, 161, 91, 0.45);
+  --shadow: 0 12px 30px rgba(0, 0, 0, 0.45);
 }
 
 * {
@@ -379,6 +402,10 @@ button.primary:hover {
   flex-wrap: wrap;
   text-align: center;
   padding: 8px 16px 18px 16px;
+}
+
+.theme-toggle {
+  min-width: 132px;
 }
 
 @media (max-width: 980px) {

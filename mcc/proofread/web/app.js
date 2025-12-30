@@ -18,6 +18,7 @@
     originalMetaSerialized: "",
     originalPass: null,
     sessionStartedAt: "",
+    theme: "system",
     ccedictCache: new Map(),
     ccedictReady: false,
     cccedictRequestId: 0,
@@ -44,6 +45,7 @@
     progress: byId("progress"),
     stats: byId("stats"),
     statsBtn: byId("stats-btn"),
+    themeToggle: byId("theme-toggle"),
     pathsHint: byId("paths-hint"),
     image: byId("column-image"),
     imageFrame: byId("image-frame"),
@@ -70,6 +72,8 @@
 
   const DEFAULT_COLUMNS = ["index", "word", "pinyin"];
   const STORAGE_PROOFREAD_BY = "mcc-proofread-by";
+  const STORAGE_THEME = "mcc-proofread-theme";
+  const THEME_ORDER = ["system", "light", "dark"];
 
   async function fetchJson(url, options) {
     const response = await fetch(url, options);
@@ -117,6 +121,70 @@
     } catch (error) {
       // Ignore storage failures (private mode, quota, etc).
     }
+  }
+
+  function normalizeTheme(value) {
+    if (value === "light" || value === "dark") {
+      return value;
+    }
+    return "system";
+  }
+
+  function getStoredTheme() {
+    try {
+      return normalizeTheme(localStorage.getItem(STORAGE_THEME));
+    } catch (error) {
+      return "system";
+    }
+  }
+
+  function setStoredTheme(value) {
+    try {
+      if (value && value !== "system") {
+        localStorage.setItem(STORAGE_THEME, value);
+      } else {
+        localStorage.removeItem(STORAGE_THEME);
+      }
+    } catch (error) {
+      // Ignore storage failures (private mode, quota, etc).
+    }
+  }
+
+  function formatThemeLabel(theme) {
+    const label = theme === "system" ? "System" : theme[0].toUpperCase() + theme.slice(1);
+    return `Theme: ${label}`;
+  }
+
+  function applyTheme(theme) {
+    const root = document.documentElement;
+    if (theme === "system") {
+      root.removeAttribute("data-theme");
+    } else {
+      root.setAttribute("data-theme", theme);
+    }
+    if (elements.themeToggle) {
+      elements.themeToggle.textContent = formatThemeLabel(theme);
+      elements.themeToggle.setAttribute("aria-pressed", theme === "dark" ? "true" : "false");
+    }
+  }
+
+  function setTheme(theme) {
+    const normalized = normalizeTheme(theme);
+    state.theme = normalized;
+    setStoredTheme(normalized);
+    applyTheme(normalized);
+  }
+
+  function cycleTheme() {
+    const currentIndex = THEME_ORDER.indexOf(state.theme);
+    const index = currentIndex === -1 ? 0 : currentIndex;
+    const next = THEME_ORDER[(index + 1) % THEME_ORDER.length];
+    setTheme(next);
+  }
+
+  function initializeTheme() {
+    state.theme = getStoredTheme();
+    applyTheme(state.theme);
   }
 
   function toLocalInputValue(date) {
@@ -1419,6 +1487,9 @@
     if (elements.statsBtn) {
       elements.statsBtn.addEventListener("click", () => computeStats());
     }
+    if (elements.themeToggle) {
+      elements.themeToggle.addEventListener("click", cycleTheme);
+    }
     elements.addRowBtn.addEventListener("click", addRow);
     elements.removeRowBtn.addEventListener("click", removeRow);
     elements.addColBtn.addEventListener("click", addColumn);
@@ -1439,6 +1510,7 @@
   }
 
   async function init() {
+    initializeTheme();
     await fetchConfig();
     initializeMode();
     bindEvents();
