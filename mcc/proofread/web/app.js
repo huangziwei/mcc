@@ -74,6 +74,15 @@
   const STORAGE_PROOFREAD_BY = "mcc-proofread-by";
   const STORAGE_THEME = "mcc-proofread-theme";
   const THEME_ORDER = ["system", "light", "dark"];
+  const TONE_MARKS = {
+    a: ["a", "\u0101", "\u00e1", "\u01ce", "\u00e0"],
+    e: ["e", "\u0113", "\u00e9", "\u011b", "\u00e8"],
+    i: ["i", "\u012b", "\u00ed", "\u01d0", "\u00ec"],
+    o: ["o", "\u014d", "\u00f3", "\u01d2", "\u00f2"],
+    u: ["u", "\u016b", "\u00fa", "\u01d4", "\u00f9"],
+    "\u00fc": ["\u00fc", "\u01d6", "\u01d8", "\u01da", "\u01dc"],
+  };
+  const PINYIN_VOWELS = new Set(["a", "e", "i", "o", "u", "\u00fc"]);
 
   async function fetchJson(url, options) {
     const response = await fetch(url, options);
@@ -101,6 +110,29 @@
       return;
     }
     elements.stats.textContent = message;
+  }
+
+  function formatPinyinFillStatus(stats) {
+    if (!stats || !stats.total) {
+      return "";
+    }
+    if (stats.error) {
+      return "Pinyin: autofill failed";
+    }
+    const parts = [];
+    if (stats.filled) {
+      parts.push(`+${stats.filled}`);
+    }
+    if (stats.ambiguous) {
+      parts.push(`${stats.ambiguous} ambiguous`);
+    }
+    if (stats.missing) {
+      parts.push(`${stats.missing} missing`);
+    }
+    if (!parts.length) {
+      return "Pinyin: no matches";
+    }
+    return `Pinyin: ${parts.join(", ")}`;
   }
 
   function getStoredProofreadBy() {
@@ -536,6 +568,7 @@
     state.sessionStartedAt = nowLocalValue();
     setupColumns(meta.columns);
     setDefaultShiftColumn();
+    const pinyinFill = await autoFillPinyinForColumn();
     state.cccedictCache = new Map();
     state.cccedictReady = false;
     state.cccedictRequestId += 1;
@@ -546,7 +579,10 @@
     elements.tableContainer.scrollTop = 0;
     renderColumnSelect();
     updateProgress();
-    const baseStatus = `Loaded ${item.base}`;
+    const pinyinStatus = formatPinyinFillStatus(pinyinFill);
+    const baseStatus = pinyinStatus
+      ? `Loaded ${item.base} | ${pinyinStatus}`
+      : `Loaded ${item.base}`;
     const ccedictStatus = await refreshCcedictHighlights(cccedictRequestId);
     if (ccedictStatus && ccedictStatus.status === "ok") {
       setStatus(`${baseStatus} | CC-CEDICT: ${ccedictStatus.missing} missing`);
@@ -772,6 +808,85 @@
     return String(value || "").trim();
   }
 
+  function findToneIndex(syllable) {
+    const lower = syllable.toLowerCase();
+    const aIndex = lower.indexOf("a");
+    if (aIndex !== -1) {
+      return aIndex;
+    }
+    const eIndex = lower.indexOf("e");
+    if (eIndex !== -1) {
+      return eIndex;
+    }
+    const ouIndex = lower.indexOf("ou");
+    if (ouIndex !== -1) {
+      return ouIndex;
+    }
+    const uiIndex = lower.indexOf("ui");
+    if (uiIndex !== -1) {
+      return uiIndex + 1;
+    }
+    const iuIndex = lower.indexOf("iu");
+    if (iuIndex !== -1) {
+      return iuIndex + 1;
+    }
+    for (let i = lower.length - 1; i >= 0; i -= 1) {
+      if (PINYIN_VOWELS.has(lower[i])) {
+        return i;
+      }
+    }
+    return -1;
+  }
+
+  function applyToneMark(syllable, tone) {
+    if (!tone || tone < 1 || tone > 4) {
+      return syllable.toLowerCase();
+    }
+    const lower = syllable.toLowerCase();
+    const index = findToneIndex(lower);
+    if (index === -1) {
+      return lower;
+    }
+    const vowel = lower[index];
+    const marked = TONE_MARKS[vowel] ? TONE_MARKS[vowel][tone] : vowel;
+    return lower.slice(0, index) + marked + lower.slice(index + 1);
+  }
+
+  function normalizeCcedictToken(token) {
+    const raw = String(token || "").trim().toLowerCase();
+    if (!raw) {
+      return "";
+    }
+    if (raw === "r" || raw === "r5") {
+      return "r";
+    }
+    const match = raw.match(/^(.*?)([1-5])$/);
+    const base = match ? match[1] : raw;
+    const tone = match ? Number(match[2]) : 0;
+    const normalized = base.replace(/u:|v/g, "\u00fc");
+    return applyToneMark(normalized, tone);
+  }
+
+  function normalizeCcedictPinyin(value) {
+    const tokens = String(value || "")
+      .trim()
+      .split(/\s+/)
+      .filter(Boolean);
+    if (!tokens.length) {
+      return "";
+    }
+    const converted = tokens.map((token) => normalizeCcedictToken(token)).filter(Boolean);
+    const merged = [];
+    for (const token of converted) {
+      if (token === "r" && merged.length) {
+        merged[merged.length - 1] += "r";
+        continue;
+      }
+      merged.push(token);
+    }
+    return merged.join(" ");
+  }
+
   function collectWordColumnValues(colIndex) {
     const words = new Set();
     state.tableData.forEach((row) => {
@@ -850,6 +965,83 @@
       return [];
     }
     return response.missing;
+  }
+
+  async function fetchCcedictPinyin(words) {
+    const response = await fetchJson("/api/cccedict-pinyin", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ words }),
+    });
+    if (!response || typeof response.pinyin !== "object" || response.pinyin === null) {
+      return {};
+    }
+    return response.pinyin;
+  }
+
+  async function autoFillPinyinForColumn() {
+    const wordCol = findColumnIndexByName("word");
+    const pinyinCol = findColumnIndexByName("pinyin");
+    if (wordCol === null || pinyinCol === null) {
+      return null;
+    }
+    const rowsToFill = [];
+    const uniqueWords = new Set();
+    state.tableData.forEach((row, rowIndex) => {
+      if (!row || wordCol >= row.length || pinyinCol >= row.length) {
+        return;
+      }
+      const word = normalizeWord(row[wordCol]);
+      if (!word) {
+        return;
+      }
+      const pinyin = normalizeWord(row[pinyinCol]);
+      if (pinyin) {
+        return;
+      }
+      rowsToFill.push({ rowIndex, word });
+      uniqueWords.add(word);
+    });
+    if (!rowsToFill.length) {
+      return { total: 0, filled: 0, ambiguous: 0, missing: 0 };
+    }
+    let pinyinMap = {};
+    try {
+      pinyinMap = await fetchCcedictPinyin(Array.from(uniqueWords));
+    } catch (error) {
+      return { total: rowsToFill.length, filled: 0, ambiguous: 0, missing: 0, error: true };
+    }
+    const normalizedMap = new Map();
+    Object.keys(pinyinMap).forEach((word) => {
+      const readings = Array.isArray(pinyinMap[word]) ? pinyinMap[word] : [];
+      const normalized = new Set();
+      readings.forEach((reading) => {
+        const normalizedReading = normalizeCcedictPinyin(reading);
+        if (normalizedReading) {
+          normalized.add(normalizedReading);
+        }
+      });
+      if (normalized.size) {
+        normalizedMap.set(word, Array.from(normalized));
+      }
+    });
+    let filled = 0;
+    let ambiguous = 0;
+    let missing = 0;
+    rowsToFill.forEach(({ rowIndex, word }) => {
+      const options = normalizedMap.get(word);
+      if (!options || options.length === 0) {
+        missing += 1;
+        return;
+      }
+      if (options.length === 1) {
+        state.tableData[rowIndex][pinyinCol] = options[0];
+        filled += 1;
+        return;
+      }
+      ambiguous += 1;
+    });
+    return { total: rowsToFill.length, filled, ambiguous, missing };
   }
 
   async function refreshCcedictHighlights(requestId) {

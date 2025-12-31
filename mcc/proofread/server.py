@@ -21,29 +21,46 @@ _README_STATS_LOCK = threading.Lock()
 _MERGE_LOCK = threading.Lock()
 _CCCEDICT_LOCK = threading.Lock()
 _CCCEDICT_WORDS: set[str] | None = None
+_CCCEDICT_PINYIN: dict[str, set[str]] | None = None
 _JIEBA_LOCK = threading.Lock()
 _JIEBA_READY = False
 _JIEBA_CACHE: dict[str, bool] = {}
 
 
-def _load_cccedict_words() -> set[str]:
-    global _CCCEDICT_WORDS
-    if _CCCEDICT_WORDS is not None:
-        return _CCCEDICT_WORDS
+def _load_cccedict_data() -> None:
+    global _CCCEDICT_WORDS, _CCCEDICT_PINYIN
+    if _CCCEDICT_WORDS is not None and _CCCEDICT_PINYIN is not None:
+        return
     with _CCCEDICT_LOCK:
-        if _CCCEDICT_WORDS is not None:
-            return _CCCEDICT_WORDS
+        if _CCCEDICT_WORDS is not None and _CCCEDICT_PINYIN is not None:
+            return
         ccedict = CcCedict()
         words: set[str] = set()
+        pinyin_map: dict[str, set[str]] = {}
         for entry in ccedict.get_entries():
+            pinyin = entry.get("pinyin")
             simplified = entry.get("simplified")
             traditional = entry.get("traditional")
             if simplified:
                 words.add(simplified)
+                if pinyin:
+                    pinyin_map.setdefault(simplified, set()).add(pinyin)
             if traditional:
                 words.add(traditional)
+                if pinyin:
+                    pinyin_map.setdefault(traditional, set()).add(pinyin)
         _CCCEDICT_WORDS = words
-    return _CCCEDICT_WORDS
+        _CCCEDICT_PINYIN = pinyin_map
+
+
+def _load_cccedict_words() -> set[str]:
+    _load_cccedict_data()
+    return _CCCEDICT_WORDS or set()
+
+
+def _load_cccedict_pinyin() -> dict[str, set[str]]:
+    _load_cccedict_data()
+    return _CCCEDICT_PINYIN or {}
 
 
 def _filter_missing_with_jieba(words: list[str]) -> list[str]:
@@ -119,6 +136,9 @@ class ProofreadRequestHandler(SimpleHTTPRequestHandler):
             return
         if parsed.path == "/api/merge":
             self._handle_api_merge()
+            return
+        if parsed.path == "/api/cccedict-pinyin":
+            self._handle_api_cccedict_pinyin()
             return
         if parsed.path == "/api/cccedict-check":
             self._handle_api_cccedict_check()
@@ -333,6 +353,50 @@ class ProofreadRequestHandler(SimpleHTTPRequestHandler):
                 self.send_error(500, "Failed to load Jieba dictionary")
                 return
         response = json.dumps({"missing": missing}).encode("utf-8")
+        self.send_response(200)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(response)))
+        self.end_headers()
+        self.wfile.write(response)
+
+    def _handle_api_cccedict_pinyin(self) -> None:
+        content_length = int(self.headers.get("Content-Length", "0"))
+        data = self.rfile.read(content_length)
+        try:
+            payload = json.loads(data)
+        except json.JSONDecodeError:
+            self.send_error(400, "Invalid JSON payload")
+            return
+        words = payload.get("words")
+        if not isinstance(words, list):
+            self.send_error(400, "Missing words list")
+            return
+        normalized: set[str] = set()
+        for word in words:
+            if word is None:
+                continue
+            text = str(word).strip()
+            if text:
+                normalized.add(text)
+        if not normalized:
+            response = json.dumps({"pinyin": {}}).encode("utf-8")
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(response)))
+            self.end_headers()
+            self.wfile.write(response)
+            return
+        try:
+            ccedict_pinyin = _load_cccedict_pinyin()
+        except Exception:
+            self.send_error(500, "Failed to load CC-CEDICT")
+            return
+        output: dict[str, list[str]] = {}
+        for word in normalized:
+            readings = ccedict_pinyin.get(word)
+            if readings:
+                output[word] = sorted(readings)
+        response = json.dumps({"pinyin": output}).encode("utf-8")
         self.send_response(200)
         self.send_header("Content-Type", "application/json")
         self.send_header("Content-Length", str(len(response)))
