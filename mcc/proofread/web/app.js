@@ -71,7 +71,7 @@
     startScrollTop: 0,
   };
 
-  const DEFAULT_COLUMNS = ["index", "word", "pinyin"];
+  const DEFAULT_COLUMNS = ["index", "word", "pinyin", "origin"];
   const STORAGE_PROOFREAD_BY = "mcc-proofread-by";
   const STORAGE_THEME = "mcc-proofread-theme";
   const THEME_ORDER = ["system", "light", "dark"];
@@ -647,6 +647,13 @@
       ...state.tableData.map((row) => row.length),
       DEFAULT_COLUMNS.length
     );
+    const normalizedColumns = savedColumns ? savedColumns.slice(0) : null;
+    if (normalizedColumns && maxCols >= 4 && !normalizedColumns.includes("origin")) {
+      const fourth = (normalizedColumns[3] || "").trim().toLowerCase();
+      if (!fourth || fourth === "col-4") {
+        normalizedColumns[3] = "origin";
+      }
+    }
     state.tableData = state.tableData.map((row) => {
       const next = row.slice(0);
       while (next.length < maxCols) {
@@ -656,8 +663,8 @@
     });
     state.columnNames = [];
     for (let i = 0; i < maxCols; i += 1) {
-      if (savedColumns && savedColumns[i]) {
-        state.columnNames.push(savedColumns[i]);
+      if (normalizedColumns && normalizedColumns[i]) {
+        state.columnNames.push(normalizedColumns[i]);
       } else if (DEFAULT_COLUMNS[i]) {
         state.columnNames.push(DEFAULT_COLUMNS[i]);
       } else {

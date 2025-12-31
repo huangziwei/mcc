@@ -59,6 +59,9 @@ def read_metadata(meta_dir: Path | None, base: str) -> dict[str, Any] | None:
 
 def normalize_columns(columns: list[str], max_len: int) -> list[str]:
     normalized = list(columns)
+    if max_len >= 4 and "origin" not in normalized and len(normalized) > 3:
+        if normalized[3].strip().lower() in {"", "col-4"}:
+            normalized[3] = "origin"
     if max_len <= len(normalized):
         return normalized
     for idx in range(len(normalized), max_len):
