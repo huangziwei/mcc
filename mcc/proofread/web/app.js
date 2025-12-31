@@ -423,21 +423,33 @@
       return 0;
     }
     const metaSet = new Set(metaFiles.map((name) => baseName(name)));
-    const missingIndex = state.items.findIndex((item) => !metaSet.has(item.base));
-    if (missingIndex !== -1) {
-      return missingIndex;
+    const lastIndex = state.items.length - 1;
+    const lastItem = lastIndex >= 0 ? state.items[lastIndex] : null;
+    let lastPass = 0;
+    if (lastItem && metaSet.has(lastItem.base)) {
+      if (!lastItem.meta) {
+        lastItem.meta = await readMetadata(lastItem.base);
+      }
+      lastPass = extractPassNumber(lastItem.meta) || 0;
     }
-    setStatus("Scanning for next unproofread...");
+    const targetPass = Math.max(1, lastPass + 1);
+    setStatus(`Scanning for next unproofread pass ${targetPass}...`);
     for (let i = 0; i < state.items.length; i += 1) {
       const item = state.items[i];
-      if (!item.meta) {
-        item.meta = await readMetadata(item.base);
+      let pass = 0;
+      if (metaSet.has(item.base)) {
+        if (!item.meta) {
+          item.meta = await readMetadata(item.base);
+        }
+        pass = extractPassNumber(item.meta) || 0;
       }
-      if (!extractPassNumber(item.meta)) {
+      if (pass < targetPass) {
         return i;
       }
       if (i === 0 || (i + 1) % 25 === 0 || i + 1 === state.items.length) {
-        setStatus(`Scanning for next unproofread ${i + 1}/${state.items.length}`);
+        setStatus(
+          `Scanning for next unproofread pass ${targetPass} ${i + 1}/${state.items.length}`
+        );
       }
     }
     return 0;

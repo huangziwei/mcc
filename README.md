@@ -1,11 +1,12 @@
 # Modern Chinese Common Words / 现代汉语常用词表 (2e, 2021)
 
-WIP. Preview: http://hzwei.dev/mcc/
+Preview: http://hzwei.dev/mcc/
 
 ### Proofreading Progress
 
 <!-- mcc:stats:start -->
-- Pass 1: 56,790 / 56,790 (100.0%)
+- Pass 1: 100%
+- Pass 2: 185 / 56,790 (0.3%)
 <!-- mcc:stats:end -->
 
 ### Usage
