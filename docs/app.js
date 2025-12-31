@@ -15,6 +15,7 @@ const elements = {
     footer: document.querySelector(".footer"),
     lengthSelect: document.getElementById("length-filter"),
     rankSelect: document.getElementById("rank-filter"),
+    originSelect: document.getElementById("origin-filter"),
 };
 
 const RANK_OPTIONS = [500, 1000, 3000, 5000, 10000, 20000, 30000, 40000, 50000];
@@ -41,6 +42,7 @@ const dataState = {
 };
 const filterState = { value: "all" };
 const rankState = { value: "1" };
+const originState = { value: "all" };
 const searchState = { query: "", timer: null, matcher: null };
 const pinyinState = { visible: false };
 const layoutState = { rows: 1 };
@@ -55,6 +57,7 @@ const selectionMenuState = {
     timer: null,
 };
 let scrollTicking = false;
+let filterMeasureSpan = null;
 
 function setStatus(message, isError = false) {
     elements.status.textContent = message;
@@ -69,6 +72,78 @@ function normalizeQuery(value) {
     return String(value || "")
         .trim()
         .toLowerCase();
+}
+
+function normalizeOrigin(value) {
+    return String(value || "")
+        .trim()
+        .toLowerCase();
+}
+
+function ensureFilterMeasureSpan() {
+    if (filterMeasureSpan) {
+        return filterMeasureSpan;
+    }
+    const span = document.createElement("span");
+    span.style.position = "absolute";
+    span.style.visibility = "hidden";
+    span.style.whiteSpace = "pre";
+    span.style.pointerEvents = "none";
+    span.style.top = "-9999px";
+    span.style.left = "-9999px";
+    document.body.appendChild(span);
+    filterMeasureSpan = span;
+    return span;
+}
+
+function getSelectedLabel(select) {
+    if (!select) {
+        return "";
+    }
+    const option = select.selectedOptions && select.selectedOptions[0];
+    if (option && option.textContent) {
+        return option.textContent.trim();
+    }
+    return select.value || "";
+}
+
+function measureSelectWidth(select) {
+    if (!select) {
+        return 0;
+    }
+    const label = getSelectedLabel(select);
+    if (!label) {
+        return 0;
+    }
+    const span = ensureFilterMeasureSpan();
+    const style = window.getComputedStyle(select);
+    span.style.font = style.font;
+    span.style.letterSpacing = style.letterSpacing;
+    span.style.textTransform = style.textTransform;
+    span.textContent = label;
+    const textWidth = span.getBoundingClientRect().width;
+    const paddingLeft = Number.parseFloat(style.paddingLeft) || 0;
+    const paddingRight = Number.parseFloat(style.paddingRight) || 0;
+    const borderLeft = Number.parseFloat(style.borderLeftWidth) || 0;
+    const borderRight = Number.parseFloat(style.borderRightWidth) || 0;
+    return Math.ceil(textWidth + paddingLeft + paddingRight + borderLeft + borderRight);
+}
+
+function syncFilterWidths() {
+    const selects = [elements.lengthSelect, elements.rankSelect, elements.originSelect].filter(
+        Boolean
+    );
+    if (!selects.length) {
+        return;
+    }
+    selects.forEach((select) => {
+        const width = measureSelectWidth(select);
+        if (!Number.isFinite(width) || width <= 0) {
+            select.style.removeProperty("--filter-width");
+            return;
+        }
+        select.style.setProperty("--filter-width", `${Math.ceil(width)}px`);
+    });
 }
 
 function createSelectionMenuButton(label) {
@@ -573,6 +648,14 @@ function parseRankValue(value) {
     return { mode: "rank", value: parsed };
 }
 
+function parseOriginValue(value) {
+    const normalized = normalizeOrigin(value);
+    if (!normalized || normalized === "all") {
+        return { mode: "all" };
+    }
+    return { mode: "exact", value: normalized };
+}
+
 function formatRankOptionLabel(value) {
     if (value % 1000 === 0) {
         return `${value / 1000}k`;
@@ -588,6 +671,17 @@ function formatFilterLabel(value) {
         return `${value} chars`;
     }
     return `${value} chars`;
+}
+
+function formatOriginLabel(value) {
+    const normalized = normalizeOrigin(value);
+    if (!normalized || normalized === "all") {
+        return "";
+    }
+    if (normalized === "buddhism") {
+        return "佛源语(孙维张, 2007)";
+    }
+    return `Origin: ${value}`;
 }
 
 function formatRankLabel(value) {
@@ -625,6 +719,7 @@ function updateRankOptions(proofreadCount) {
     });
     rankState.value = nextValue;
     elements.rankSelect.value = nextValue;
+    syncFilterWidths();
 }
 
 function getRankStartIndex(entries, parsed) {
@@ -649,6 +744,21 @@ function matchesLength(entry, parsed) {
         return entry.length === parsed.value;
     }
     return entry.length >= parsed.value;
+}
+
+function matchesOrigin(entry, parsed) {
+    if (!parsed || parsed.mode === "all") {
+        return true;
+    }
+    const origin = entry.originValue || "";
+    if (!origin) {
+        return false;
+    }
+    const tokens = origin
+        .split(/[,;|]/)
+        .map((value) => value.trim())
+        .filter(Boolean);
+    return tokens.includes(parsed.value);
 }
 
 function matchesSearch(entry) {
@@ -746,10 +856,12 @@ function buildSearchMatcher(query) {
 function updateStatusText() {
     const base = CONFIG.proofreadOnly ? "Proofread words" : "All words";
     const label = formatFilterLabel(filterState.value);
+    const originLabel = formatOriginLabel(originState.value);
+    const originText = originLabel ? ` • ${originLabel}` : "";
     const rankLabel = formatRankLabel(rankState.value);
     const rankText = rankLabel ? ` • ${rankLabel}` : "";
     const queryLabel = searchState.query ? ` • "${searchState.query}"` : "";
-    setStatus(`${base} • ${label}${rankText}${queryLabel}`);
+    setStatus(`${base} • ${label}${originText}${rankText}${queryLabel}`);
 }
 
 function updateFilterControl() {
@@ -763,14 +875,24 @@ function updateFilterControl() {
             elements.rankSelect.value = rankState.value;
         }
     }
+    if (elements.originSelect) {
+        if (elements.originSelect.value !== originState.value) {
+            elements.originSelect.value = originState.value;
+        }
+    }
+    syncFilterWidths();
 }
 
 function applyFilters() {
     const lengthParsed = parseFilterValue(filterState.value);
+    const originParsed = parseOriginValue(originState.value);
     const displayEntries = [];
     const counts = { proofread: 0, total: 0 };
     for (const entry of dataState.allEntries) {
         if (!matchesLength(entry, lengthParsed)) {
+            continue;
+        }
+        if (!matchesOrigin(entry, originParsed)) {
             continue;
         }
         if (!matchesSearch(entry)) {
@@ -809,8 +931,13 @@ function applyRankJump(value) {
     applyFilters();
 }
 
+function applyOriginFilter(value) {
+    originState.value = value || "all";
+    applyFilters();
+}
+
 function initFilters() {
-    if (!elements.lengthSelect && !elements.rankSelect) {
+    if (!elements.lengthSelect && !elements.rankSelect && !elements.originSelect) {
         return;
     }
     if (elements.lengthSelect) {
@@ -825,6 +952,13 @@ function initFilters() {
         });
         rankState.value = elements.rankSelect.value || "1";
     }
+    if (elements.originSelect) {
+        elements.originSelect.addEventListener("change", () => {
+            applyOriginFilter(elements.originSelect.value);
+        });
+        originState.value = elements.originSelect.value || "all";
+    }
+    syncFilterWidths();
 }
 
 function initSearch() {
@@ -1171,6 +1305,10 @@ async function loadWords() {
     if (pinyinIndex === -1) {
         pinyinIndex = null;
     }
+    let originIndex = header.indexOf("origin");
+    if (originIndex === -1) {
+        originIndex = null;
+    }
 
     const proofreadRanges = collectProofreadRanges(stats);
     const isProofreadRow = createRangeChecker(proofreadRanges);
@@ -1185,6 +1323,8 @@ async function loadWords() {
         const rankValue = Number.parseInt(rankText, 10);
         const safeRankValue = Number.isFinite(rankValue) ? rankValue : i;
         const pinyinRaw = pinyinIndex !== null && pinyinIndex < rows[i].length ? rows[i][pinyinIndex] : "";
+        const originRaw = originIndex !== null && originIndex < rows[i].length ? rows[i][originIndex] : "";
+        const originValue = normalizeOrigin(originRaw);
         const { tokens: pinyinTokens, erhuaFlags } = buildPinyinDisplay(word, pinyinRaw);
         entries.push({
             rank: rankText,
@@ -1195,6 +1335,8 @@ async function loadWords() {
             pinyin: pinyinRaw,
             pinyinTokens,
             erhuaFlags,
+            origin: originRaw,
+            originValue,
             search: word.toLowerCase(),
         });
     }
@@ -1217,7 +1359,12 @@ async function init() {
         window.__mccResizeTimer = window.setTimeout(updateLayout, 150);
     });
     if (document.fonts && document.fonts.ready) {
-        document.fonts.ready.then(updateLayout).catch(() => null);
+        document.fonts.ready
+            .then(() => {
+                updateLayout();
+                syncFilterWidths();
+            })
+            .catch(() => null);
     }
     try {
         const { stats, entries } = await loadWords();
