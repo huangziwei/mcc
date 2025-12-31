@@ -62,7 +62,10 @@ def normalize_columns(columns: list[str], max_len: int) -> list[str]:
     if max_len <= len(normalized):
         return normalized
     for idx in range(len(normalized), max_len):
-        normalized.append(f"col-{idx + 1}")
+        if idx == 3 and "origin" not in normalized:
+            normalized.append("origin")
+        else:
+            normalized.append(f"col-{idx + 1}")
     return normalized
 
 
