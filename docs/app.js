@@ -458,20 +458,58 @@ function isErhuaToken(token) {
     return normalized.endsWith("r");
 }
 
-function shouldUseErhua(word, tokens) {
-    if (!word.endsWith("儿")) {
-        return false;
-    }
-    if (tokens && tokens.length) {
-        const lastToken = tokens[tokens.length - 1];
-        if (lastToken) {
-            const erhua = isErhuaToken(lastToken);
-            if (erhua !== null) {
-                return erhua;
+function buildPinyinDisplay(word, pinyinRaw) {
+    const tokens = parsePinyinTokens(pinyinRaw);
+    const chars = Array.from(word);
+    const alignedTokens = [];
+    const erhuaFlags = new Array(chars.length).fill(false);
+    let tokenIndex = 0;
+    let pendingErhua = false;
+
+    for (let i = 0; i < chars.length; i += 1) {
+        const char = chars[i];
+
+        if (pendingErhua) {
+            if (char === "儿") {
+                alignedTokens.push("");
+                erhuaFlags[i] = true;
+                pendingErhua = false;
+                continue;
             }
+            pendingErhua = false;
         }
+
+        const token = tokens[tokenIndex] || "";
+        if (!token) {
+            alignedTokens.push("");
+            continue;
+        }
+
+        if (char === "儿") {
+            alignedTokens.push(token);
+            if (isErhuaToken(token) && normalizeErhuaToken(token) === "r") {
+                erhuaFlags[i] = true;
+            }
+            tokenIndex += 1;
+            continue;
+        }
+
+        if (isErhuaToken(token) && chars[i + 1] === "儿") {
+            alignedTokens.push(token);
+            tokenIndex += 1;
+            pendingErhua = true;
+            continue;
+        }
+
+        alignedTokens.push(token);
+        tokenIndex += 1;
     }
-    return !ERHUA_EXCEPTIONS.has(word);
+
+    if (!tokens.length && chars.length && word.endsWith("儿") && !ERHUA_EXCEPTIONS.has(word)) {
+        erhuaFlags[chars.length - 1] = true;
+    }
+
+    return { tokens: alignedTokens, erhuaFlags };
 }
 
 function appendWordRuby(target, entry) {
@@ -480,10 +518,10 @@ function appendWordRuby(target, entry) {
     ruby.className = "word-ruby";
     const chars = Array.from(entry.word);
     const tokens = entry.pinyinTokens || [];
-    const useErhua = shouldUseErhua(entry.word, tokens);
-    const lastIndex = chars.length - 1;
+    const erhuaFlags = entry.erhuaFlags || [];
     chars.forEach((char, index) => {
-        if (useErhua && index === lastIndex) {
+        const isErhuaChar = !!erhuaFlags[index];
+        if (isErhuaChar) {
             const span = document.createElement("span");
             span.className = "erhua";
             span.textContent = char;
@@ -1147,7 +1185,7 @@ async function loadWords() {
         const rankValue = Number.parseInt(rankText, 10);
         const safeRankValue = Number.isFinite(rankValue) ? rankValue : i;
         const pinyinRaw = pinyinIndex !== null && pinyinIndex < rows[i].length ? rows[i][pinyinIndex] : "";
-        const pinyinTokens = parsePinyinTokens(pinyinRaw);
+        const { tokens: pinyinTokens, erhuaFlags } = buildPinyinDisplay(word, pinyinRaw);
         entries.push({
             rank: rankText,
             rankValue: safeRankValue,
@@ -1156,6 +1194,7 @@ async function loadWords() {
             length,
             pinyin: pinyinRaw,
             pinyinTokens,
+            erhuaFlags,
             search: word.toLowerCase(),
         });
     }
