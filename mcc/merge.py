@@ -228,7 +228,10 @@ def merge_csv(
     stats = build_stats(merge_items, row_ranges_by_pass, unproofread_ranges)
 
     with out_path.open("w", newline="", encoding="utf-8") as csv_file:
-        if stats_mode == "comments":
+        if (
+            stats_mode == "comments"
+            and stats.get("rows", {}).get("unproofread", 0) > 0
+        ):
             stats_payload = json.dumps(stats, ensure_ascii=True, sort_keys=True, separators=(",", ":"))
             csv_file.write(f"# mcc-stats: {stats_payload}\n")
         writer = csv.writer(csv_file)

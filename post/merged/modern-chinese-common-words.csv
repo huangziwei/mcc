@@ -1,4 +1,3 @@
-# mcc-stats: {"columns":{"passes":{"1":1235,"2":10},"proofread":1245,"total":1245,"unproofread":0},"rows":{"passes":{"1":56375,"2":415},"proofread":56790,"ranges_by_pass":{"1":[[416,56790]],"2":[[1,415]]},"total":56790,"unproofread":0,"unproofread_ranges":[]}}
 index,word,pinyin
 1,的,de
 2,是,shì
