@@ -6,7 +6,7 @@ Preview: http://hzwei.dev/mcc/
 
 <!-- mcc:stats:start -->
 - Pass 1: 100%
-- Pass 2: 185 / 56,790 (0.3%)
+- Pass 2: 415 / 56,790 (0.7%)
 <!-- mcc:stats:end -->
 
 ### Usage

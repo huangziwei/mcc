@@ -17,6 +17,7 @@
     originalCsvSerialized: "",
     originalMetaSerialized: "",
     originalPass: null,
+    targetPass: null,
     sessionStartedAt: "",
     theme: "system",
     ccedictCache: new Map(),
@@ -261,6 +262,26 @@
     return parsed;
   }
 
+  function applyPassDefault(meta) {
+    if (!elements.metaLevel) {
+      return;
+    }
+    const targetPass = state.targetPass;
+    if (!targetPass) {
+      return;
+    }
+    const metaPass = extractPassNumber(meta);
+    if (targetPass === 1) {
+      if (!metaPass && !elements.metaLevel.value.trim()) {
+        elements.metaLevel.value = "1";
+      }
+      return;
+    }
+    if (metaPass === targetPass - 1) {
+      elements.metaLevel.value = String(targetPass);
+    }
+  }
+
   function baseName(filename) {
     const lastDot = filename.lastIndexOf(".");
     return lastDot === -1 ? filename : filename.slice(0, lastDot);
@@ -433,6 +454,7 @@
       lastPass = extractPassNumber(lastItem.meta) || 0;
     }
     const targetPass = Math.max(1, lastPass + 1);
+    state.targetPass = targetPass;
     setStatus(`Scanning for next unproofread pass ${targetPass}...`);
     for (let i = 0; i < state.items.length; i += 1) {
       const item = state.items[i];
@@ -587,6 +609,7 @@
     const cccedictRequestId = state.cccedictRequestId;
     renderTable();
     renderMetadata();
+    applyPassDefault(meta);
     await loadImage(item);
     elements.tableContainer.scrollTop = 0;
     renderColumnSelect();
