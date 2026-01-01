@@ -130,9 +130,7 @@ function measureSelectWidth(select) {
 }
 
 function syncFilterWidths() {
-    const selects = [elements.lengthSelect, elements.rankSelect, elements.originSelect].filter(
-        Boolean
-    );
+    const selects = [elements.lengthSelect, elements.rankSelect, elements.originSelect].filter(Boolean);
     if (!selects.length) {
         return;
     }
@@ -678,8 +676,8 @@ function formatOriginLabel(value) {
     if (!normalized || normalized === "all") {
         return "";
     }
-    if (normalized === "buddhism") {
-        return "佛源语(孙维张, 2007)";
+    if (normalized === "佛源") {
+        return "佛源";
     }
     return `Origin: ${value}`;
 }
