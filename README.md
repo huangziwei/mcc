@@ -6,7 +6,7 @@ Preview: http://hzwei.dev/mcc/
 
 <!-- mcc:stats:start -->
 - Pass 1: 100%
-- Pass 2: 461 / 56,790 (0.8%)
+- Pass 2: 553 / 56,790 (1.0%)
 <!-- mcc:stats:end -->
 
 Current proofreading focus: add pinyin and double check selected word origin.
