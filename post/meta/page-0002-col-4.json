@@ -10,6 +10,7 @@
   "columns": [
     "index",
     "word",
-    "pinyin"
+    "pinyin",
+    "origin"
   ]
 }

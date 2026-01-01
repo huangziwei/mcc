@@ -13,6 +13,7 @@ const elements = {
     view: document.getElementById("word-view"),
     header: document.querySelector(".top"),
     footer: document.querySelector(".footer"),
+    footerInner: document.querySelector(".footer-inner"),
     lengthSelect: document.getElementById("length-filter"),
     rankSelect: document.getElementById("rank-filter"),
     originSelect: document.getElementById("origin-filter"),
@@ -33,6 +34,9 @@ const ERHUA_EXCEPTIONS = new Set([
     "健儿",
     "胎儿",
 ]);
+const FOOTER_SOURCES = new Map([
+    ["佛源", "Source: 孙维张（主编）. 《佛源语词词典》. 北京：语文出版社, 2007. ISBN 978-7-80184-151-3."],
+]);
 const dataState = {
     stats: null,
     allEntries: [],
@@ -47,6 +51,7 @@ const searchState = { query: "", timer: null, matcher: null };
 const pinyinState = { visible: false };
 const layoutState = { rows: 1 };
 const renderState = { entries: [], rendered: 0, chunkSize: 400 };
+const footerState = { defaultText: "" };
 const selectionMenuState = {
     menu: null,
     copyWordButton: null,
@@ -78,6 +83,31 @@ function normalizeOrigin(value) {
     return String(value || "")
         .trim()
         .toLowerCase();
+}
+
+function normalizeFooterText(value) {
+    return String(value || "")
+        .replace(/\s+/g, " ")
+        .trim();
+}
+
+function updateFooterSource() {
+    if (!elements.footerInner) {
+        return;
+    }
+    if (!footerState.defaultText) {
+        footerState.defaultText = normalizeFooterText(elements.footerInner.textContent);
+    }
+    const normalizedOrigin = normalizeOrigin(originState.value);
+    const mappedSource = FOOTER_SOURCES.get(normalizedOrigin);
+    const nextText = normalizeFooterText(mappedSource || footerState.defaultText);
+    if (!nextText) {
+        return;
+    }
+    if (normalizeFooterText(elements.footerInner.textContent) === nextText) {
+        return;
+    }
+    elements.footerInner.textContent = nextText;
 }
 
 function ensureFilterMeasureSpan() {
@@ -916,6 +946,7 @@ function applyFilters() {
     updateMeta();
     updateStatusText();
     updateFilterControl();
+    updateFooterSource();
     updateLayout();
 }
 
