@@ -284,6 +284,7 @@ body::before {
   padding-right: 4px;
   white-space: nowrap;
   color: var(--ink);
+  cursor: pointer;
 }
 
 .word-index {
@@ -304,6 +305,13 @@ body::before {
   font-size: var(--word-size);
   line-height: 1;
   letter-spacing: 0.08em;
+}
+
+.word:hover .word-text {
+  text-decoration: underline;
+  text-decoration-color: rgba(196, 107, 50, 0.7);
+  text-underline-offset: 0.2em;
+  text-decoration-thickness: 1px;
 }
 
 .word-text .erhua {
