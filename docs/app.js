@@ -91,6 +91,61 @@ function normalizeFooterText(value) {
         .trim();
 }
 
+function selectHasValue(select, value) {
+    if (!select) {
+        return false;
+    }
+    return Array.from(select.options).some((option) => option.value === value);
+}
+
+function applyUrlState() {
+    if (!window.location.search) {
+        return;
+    }
+    const params = new URLSearchParams(window.location.search);
+    const queryParam = params.get("q");
+    if (queryParam !== null && elements.searchInput) {
+        elements.searchInput.value = queryParam;
+        searchState.query = normalizeQuery(queryParam);
+        searchState.matcher = buildSearchMatcher(searchState.query);
+    }
+    const lengthParam = params.get("len");
+    if (lengthParam && selectHasValue(elements.lengthSelect, lengthParam)) {
+        elements.lengthSelect.value = lengthParam;
+    }
+    const rankParam = params.get("rank");
+    if (rankParam && selectHasValue(elements.rankSelect, rankParam)) {
+        elements.rankSelect.value = rankParam;
+    }
+    const originParam = params.get("origin");
+    if (originParam && selectHasValue(elements.originSelect, originParam)) {
+        elements.originSelect.value = originParam;
+    }
+}
+
+function updateUrlFromState() {
+    const params = new URLSearchParams();
+    if (searchState.query) {
+        params.set("q", searchState.query);
+    }
+    if (filterState.value && filterState.value !== "all") {
+        params.set("len", filterState.value);
+    }
+    if (rankState.value && rankState.value !== "1") {
+        params.set("rank", rankState.value);
+    }
+    if (originState.value && originState.value !== "all") {
+        params.set("origin", originState.value);
+    }
+    const nextSearch = params.toString() ? `?${params.toString()}` : "";
+    if (nextSearch === window.location.search) {
+        return;
+    }
+    const url = new URL(window.location.href);
+    url.search = params.toString();
+    window.history.replaceState(null, "", url.toString());
+}
+
 function updateFooterSource() {
     if (!elements.footerInner) {
         return;
@@ -1206,6 +1261,7 @@ function applyFilters() {
     updateFilterControl();
     updateFooterSource();
     updateLayout();
+    updateUrlFromState();
 }
 
 function applyLengthFilter(value) {
@@ -1610,6 +1666,7 @@ async function loadWords() {
 
 async function init() {
     applyTitle();
+    applyUrlState();
     initFilters();
     initSearch();
     initSelectionMenu();
