@@ -1,5 +1,6 @@
 const CONFIG = {
     csvUrl: "https://raw.githubusercontent.com/huangziwei/mcc/refs/heads/main/post/merged/modern-chinese-common-words.csv",
+    dictionaryManifestUrl: "dictionaries/manifest.json",
     title: "Modern Chinese Common Words",
     proofreadOnly: true,
 };
@@ -57,9 +58,20 @@ const selectionMenuState = {
     copyWordButton: null,
     copyPinyinButton: null,
     searchButton: null,
+    dictionaryPanel: null,
+    dictionaryStatus: null,
+    dictionaryResults: null,
     word: "",
     pinyin: "",
     timer: null,
+    lookupId: 0,
+    anchorRect: null,
+};
+const dictionaryState = {
+    manifest: null,
+    manifestPromise: null,
+    dictionaries: new Map(),
+    loading: new Map(),
 };
 let scrollTicking = false;
 let filterMeasureSpan = null;
@@ -212,6 +224,122 @@ async function copyToClipboard(text) {
     return success;
 }
 
+function getDictionaryManifestUrl() {
+    if (!CONFIG.dictionaryManifestUrl) {
+        return "";
+    }
+    try {
+        return new URL(CONFIG.dictionaryManifestUrl, window.location.href).toString();
+    } catch (error) {
+        return CONFIG.dictionaryManifestUrl;
+    }
+}
+
+function resolveDictionaryUrl(path) {
+    if (!path) {
+        return "";
+    }
+    const manifestUrl = getDictionaryManifestUrl();
+    if (!manifestUrl) {
+        return path;
+    }
+    try {
+        return new URL(path, manifestUrl).toString();
+    } catch (error) {
+        return path;
+    }
+}
+
+async function loadDictionaryManifest() {
+    if (!CONFIG.dictionaryManifestUrl) {
+        return [];
+    }
+    if (dictionaryState.manifest) {
+        return dictionaryState.manifest;
+    }
+    if (dictionaryState.manifestPromise) {
+        return dictionaryState.manifestPromise;
+    }
+    dictionaryState.manifestPromise = (async () => {
+        try {
+            const url = getDictionaryManifestUrl();
+            const response = await fetch(url, { cache: "no-store" });
+            if (!response.ok) {
+                throw new Error(`Manifest fetch failed: ${response.status}`);
+            }
+            const data = await response.json();
+            const manifest = Array.isArray(data) ? data : [];
+            dictionaryState.manifest = manifest;
+            return manifest;
+        } catch (error) {
+            console.warn("Dictionary manifest failed to load.", error);
+            dictionaryState.manifest = [];
+            return [];
+        } finally {
+            dictionaryState.manifestPromise = null;
+        }
+    })();
+    return dictionaryState.manifestPromise;
+}
+
+async function loadDictionary(definition) {
+    if (!definition || !definition.id) {
+        return null;
+    }
+    if (dictionaryState.dictionaries.has(definition.id)) {
+        return dictionaryState.dictionaries.get(definition.id);
+    }
+    if (dictionaryState.loading.has(definition.id)) {
+        return dictionaryState.loading.get(definition.id);
+    }
+    const url = resolveDictionaryUrl(definition.path || "");
+    if (!url) {
+        dictionaryState.dictionaries.set(definition.id, null);
+        return null;
+    }
+    const promise = (async () => {
+        try {
+            const response = await fetch(url, { cache: "no-store" });
+            if (!response.ok) {
+                throw new Error(`Dictionary fetch failed: ${response.status}`);
+            }
+            const data = await response.json();
+            const format = data && data.meta ? data.meta.format : null;
+            if (format && format !== "mcc-dict-v1") {
+                throw new Error(`Unsupported dictionary format: ${format}`);
+            }
+            dictionaryState.dictionaries.set(definition.id, data);
+            return data;
+        } catch (error) {
+            console.warn(`Dictionary ${definition.id} failed to load.`, error);
+            dictionaryState.dictionaries.set(definition.id, null);
+            return null;
+        } finally {
+            dictionaryState.loading.delete(definition.id);
+        }
+    })();
+    dictionaryState.loading.set(definition.id, promise);
+    return promise;
+}
+
+function normalizeDictionaryEntries(rawEntries) {
+    if (!rawEntries) {
+        return [];
+    }
+    return Array.isArray(rawEntries) ? rawEntries : [rawEntries];
+}
+
+function formatDictionaryMeta(entry) {
+    const parts = [];
+    if (entry.rank) {
+        parts.push(`#${entry.rank}`);
+    }
+    if (entry.pinyin) {
+        parts.push(entry.pinyin);
+    }
+    return parts.join(" · ");
+}
+
 function getClosestWordElement(node) {
     if (!node) {
         return null;
@@ -280,6 +408,121 @@ function positionSelectionMenu(rect) {
     menu.style.top = `${y}px`;
 }
 
+function resetDictionaryPanel() {
+    if (!selectionMenuState.dictionaryPanel || !selectionMenuState.dictionaryResults) {
+        return;
+    }
+    selectionMenuState.dictionaryPanel.hidden = true;
+    if (selectionMenuState.dictionaryStatus) {
+        selectionMenuState.dictionaryStatus.textContent = "";
+        selectionMenuState.dictionaryStatus.hidden = true;
+    }
+    selectionMenuState.dictionaryResults.textContent = "";
+    selectionMenuState.dictionaryResults.hidden = true;
+}
+
+function renderDictionaryResults(results) {
+    if (!selectionMenuState.dictionaryPanel || !selectionMenuState.dictionaryResults) {
+        return;
+    }
+    selectionMenuState.dictionaryResults.textContent = "";
+    results.forEach((result) => {
+        const section = document.createElement("div");
+        section.className = "selection-menu-dictionary-section";
+
+        const title = document.createElement("div");
+        title.className = "selection-menu-dictionary-title";
+        title.textContent = result.label || result.id || "Dictionary";
+        section.appendChild(title);
+
+        result.entries.forEach((entry) => {
+            const entryWrap = document.createElement("div");
+            entryWrap.className = "selection-menu-dictionary-entry";
+
+            const metaText = formatDictionaryMeta(entry);
+            if (metaText) {
+                const meta = document.createElement("div");
+                meta.className = "selection-menu-dictionary-meta";
+                meta.textContent = metaText;
+                entryWrap.appendChild(meta);
+            }
+
+            const body = document.createElement("div");
+            body.className = "selection-menu-dictionary-text";
+            body.textContent = entry.text;
+            entryWrap.appendChild(body);
+            section.appendChild(entryWrap);
+        });
+
+        selectionMenuState.dictionaryResults.appendChild(section);
+    });
+    if (selectionMenuState.dictionaryStatus) {
+        selectionMenuState.dictionaryStatus.textContent = "";
+        selectionMenuState.dictionaryStatus.hidden = true;
+    }
+    selectionMenuState.dictionaryPanel.hidden = results.length === 0;
+    selectionMenuState.dictionaryResults.hidden = results.length === 0;
+    positionSelectionMenu(selectionMenuState.anchorRect);
+}
+
+async function updateDictionaryPanel(word) {
+    if (!selectionMenuState.dictionaryPanel || !selectionMenuState.dictionaryResults) {
+        return;
+    }
+    const lookupWord = String(word || "").trim();
+    if (!lookupWord) {
+        resetDictionaryPanel();
+        return;
+    }
+    const lookupId = selectionMenuState.lookupId + 1;
+    selectionMenuState.lookupId = lookupId;
+    resetDictionaryPanel();
+
+    const manifest = await loadDictionaryManifest();
+    if (selectionMenuState.lookupId !== lookupId || selectionMenuState.word !== lookupWord) {
+        return;
+    }
+    if (!manifest.length) {
+        resetDictionaryPanel();
+        return;
+    }
+
+    const dictionaries = await Promise.all(manifest.map((def) => loadDictionary(def)));
+    if (selectionMenuState.lookupId !== lookupId || selectionMenuState.word !== lookupWord) {
+        return;
+    }
+
+    const results = [];
+    manifest.forEach((def, index) => {
+        const data = dictionaries[index];
+        if (!data || !data.entries) {
+            return;
+        }
+        const rawEntries = data.entries[lookupWord];
+        const entries = normalizeDictionaryEntries(rawEntries)
+            .map((entry) => ({
+                rank: entry && entry.rank ? entry.rank : "",
+                pinyin: entry && entry.pinyin ? String(entry.pinyin).trim() : "",
+                text: entry && entry.text ? String(entry.text).trim() : "",
+            }))
+            .filter((entry) => entry.text);
+        if (!entries.length) {
+            return;
+        }
+        results.push({
+            id: def.id,
+            label: def.label || (data.meta && data.meta.label) || def.id,
+            entries,
+        });
+    });
+
+    if (!results.length) {
+        resetDictionaryPanel();
+        return;
+    }
+    renderDictionaryResults(results);
+}
+
 function showSelectionMenu() {
     if (!selectionMenuState.menu) {
         return;
@@ -294,6 +537,8 @@ function hideSelectionMenu() {
     selectionMenuState.menu.classList.remove("is-visible");
     selectionMenuState.word = "";
     selectionMenuState.pinyin = "";
+    selectionMenuState.anchorRect = null;
+    resetDictionaryPanel();
 }
 
 function updateSelectionMenu() {
@@ -302,13 +547,18 @@ function updateSelectionMenu() {
         hideSelectionMenu();
         return;
     }
+    const previousWord = selectionMenuState.word;
     selectionMenuState.word = context.word;
     selectionMenuState.pinyin = context.pinyin;
+    selectionMenuState.anchorRect = context.rect;
     if (selectionMenuState.copyPinyinButton) {
         selectionMenuState.copyPinyinButton.hidden = !context.pinyin;
     }
     positionSelectionMenu(context.rect);
     showSelectionMenu();
+    if (context.word !== previousWord) {
+        updateDictionaryPanel(context.word);
+    }
 }
 
 function scheduleSelectionMenuUpdate() {
@@ -327,17 +577,35 @@ function initSelectionMenu() {
     }
     const menu = document.createElement("div");
     menu.className = "selection-menu";
+    const actions = document.createElement("div");
+    actions.className = "selection-menu-actions";
     const copyWordButton = createSelectionMenuButton("Copy word");
     const copyPinyinButton = createSelectionMenuButton("Copy pinyin");
     const searchButton = createSelectionMenuButton("Search zdic.net");
-    menu.appendChild(copyWordButton);
-    menu.appendChild(copyPinyinButton);
-    menu.appendChild(searchButton);
+    actions.appendChild(copyWordButton);
+    actions.appendChild(copyPinyinButton);
+    actions.appendChild(searchButton);
+    const dictionaryPanel = document.createElement("div");
+    dictionaryPanel.className = "selection-menu-dictionary";
+    dictionaryPanel.hidden = true;
+    const dictionaryStatus = document.createElement("div");
+    dictionaryStatus.className = "selection-menu-dictionary-status";
+    dictionaryStatus.hidden = true;
+    const dictionaryResults = document.createElement("div");
+    dictionaryResults.className = "selection-menu-dictionary-results";
+    dictionaryResults.hidden = true;
+    dictionaryPanel.appendChild(dictionaryStatus);
+    dictionaryPanel.appendChild(dictionaryResults);
+    menu.appendChild(actions);
+    menu.appendChild(dictionaryPanel);
     document.body.appendChild(menu);
     selectionMenuState.menu = menu;
     selectionMenuState.copyWordButton = copyWordButton;
     selectionMenuState.copyPinyinButton = copyPinyinButton;
     selectionMenuState.searchButton = searchButton;
+    selectionMenuState.dictionaryPanel = dictionaryPanel;
+    selectionMenuState.dictionaryStatus = dictionaryStatus;
+    selectionMenuState.dictionaryResults = dictionaryResults;
 
     copyWordButton.addEventListener("click", async () => {
         await copyToClipboard(selectionMenuState.word);
