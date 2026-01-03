@@ -51,7 +51,6 @@ const selectionMenuState = {
     selectionMetaDetails: null,
     word: "",
     pinyin: "",
-    timer: null,
     lookupId: 0,
     anchorRect: null,
 };
@@ -327,54 +326,21 @@ function formatDictionaryMeta(entry) {
     return String(entry.meta).trim();
 }
 
-function getClosestWordElement(node) {
-    if (!node) {
+function getWordContext(wordElement) {
+    if (!wordElement) {
         return null;
     }
-    const element = node.nodeType === Node.ELEMENT_NODE ? node : node.parentElement;
-    if (!element) {
-        return null;
-    }
-    return element.closest(".word");
-}
-
-function getSelectionContext() {
-    if (!elements.view) {
-        return null;
-    }
-    const selection = window.getSelection();
-    if (!selection || selection.isCollapsed || selection.rangeCount === 0) {
-        return null;
-    }
-    const range = selection.getRangeAt(0);
-    if (!elements.view.contains(range.commonAncestorContainer)) {
-        return null;
-    }
-    const text = selection.toString().trim();
-    if (!text) {
-        return null;
-    }
-    const rect = range.getBoundingClientRect();
+    const rect = wordElement.getBoundingClientRect();
     if (!rect || (rect.width === 0 && rect.height === 0)) {
         return null;
     }
-    const anchorWord = getClosestWordElement(selection.anchorNode);
-    const focusWord = getClosestWordElement(selection.focusNode);
-    const wordElement = anchorWord && anchorWord === focusWord ? anchorWord : null;
-    let word = text;
-    let pinyin = "";
-    if (wordElement) {
-        const dataWord = wordElement.dataset.word || "";
-        const dataPinyin = wordElement.dataset.pinyin || "";
-        if (dataWord) {
-            word = dataWord;
-        }
-        pinyin = dataPinyin.trim();
-    } else if (dataState.wordLookup && dataState.wordLookup.has(text)) {
-        const entry = dataState.wordLookup.get(text);
-        pinyin = entry && entry.pinyin ? entry.pinyin.trim() : "";
+    const dataWord = wordElement.dataset.word || "";
+    const dataPinyin = wordElement.dataset.pinyin || "";
+    const word = dataWord || wordElement.textContent.trim();
+    if (!word) {
+        return null;
     }
-    return { word, pinyin, rect };
+    return { word, pinyin: dataPinyin.trim(), rect };
 }
 
 function positionSelectionMenu(rect) {
@@ -538,10 +504,12 @@ function hideSelectionMenu() {
     resetDictionaryPanel();
 }
 
-function updateSelectionMenu() {
-    const context = getSelectionContext();
-    if (!context || !selectionMenuState.menu) {
-        hideSelectionMenu();
+function openSelectionMenuForWord(wordElement) {
+    if (!selectionMenuState.menu) {
+        return;
+    }
+    const context = getWordContext(wordElement);
+    if (!context) {
         return;
     }
     const previousWord = selectionMenuState.word;
@@ -580,14 +548,16 @@ function updateSelectionMenu() {
     }
 }
 
-function scheduleSelectionMenuUpdate() {
-    if (selectionMenuState.timer) {
-        window.clearTimeout(selectionMenuState.timer);
+function handleWordClick(event) {
+    const target = event.target instanceof Element ? event.target : null;
+    if (!target) {
+        return;
     }
-    selectionMenuState.timer = window.setTimeout(() => {
-        selectionMenuState.timer = null;
-        updateSelectionMenu();
-    }, 30);
+    const wordElement = target.closest(".word");
+    if (!wordElement || (elements.view && !elements.view.contains(wordElement))) {
+        return;
+    }
+    openSelectionMenuForWord(wordElement);
 }
 
 function initSelectionMenu() {
@@ -659,20 +629,22 @@ function initSelectionMenu() {
         hideSelectionMenu();
     });
 
-    document.addEventListener("selectionchange", scheduleSelectionMenuUpdate);
-    document.addEventListener("mouseup", scheduleSelectionMenuUpdate);
-    document.addEventListener("touchend", scheduleSelectionMenuUpdate);
     document.addEventListener("keydown", (event) => {
         if (event.key === "Escape") {
             hideSelectionMenu();
         }
     });
     document.addEventListener("pointerdown", (event) => {
+        const target = event.target instanceof Element ? event.target : null;
+        if (target && target.closest(".word")) {
+            return;
+        }
         if (selectionMenuState.menu && !selectionMenuState.menu.contains(event.target)) {
             hideSelectionMenu();
         }
     });
     if (elements.view) {
+        elements.view.addEventListener("click", handleWordClick);
         elements.view.addEventListener("scroll", hideSelectionMenu, { passive: true });
     }
 }
