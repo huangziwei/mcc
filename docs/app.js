@@ -1,7 +1,7 @@
 const CONFIG = {
     csvUrl: "https://raw.githubusercontent.com/huangziwei/mcc/refs/heads/main/post/merged/modern-chinese-common-words.csv",
     dictionaryManifestUrl: "dictionaries/manifest.json",
-    title: "Modern Chinese Common Words",
+    title: "现代汉语常用词表（2021)",
     proofreadOnly: true,
 };
 
@@ -377,7 +377,10 @@ function formatDictionaryMeta(entry) {
         return "";
     }
     if (Array.isArray(entry.meta)) {
-        return entry.meta.map((value) => String(value).trim()).filter(Boolean).join(" · ");
+        return entry.meta
+            .map((value) => String(value).trim())
+            .filter(Boolean)
+            .join(" · ");
     }
     return String(entry.meta).trim();
 }
