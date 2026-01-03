@@ -16,6 +16,10 @@
   --footer-height: 0px;
 }
 
+*[hidden] {
+  display: none !important;
+}
+
 *,
 *::before,
 *::after {

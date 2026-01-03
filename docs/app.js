@@ -567,6 +567,9 @@ function updateSelectionMenu() {
         }
         selectionMenuState.selectionMeta.hidden = false;
     }
+    if (context.word !== previousWord) {
+        resetDictionaryPanel();
+    }
     if (selectionMenuState.copyPinyinButton) {
         selectionMenuState.copyPinyinButton.hidden = !context.pinyin;
     }
