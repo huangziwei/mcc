@@ -228,12 +228,6 @@ body::before {
   box-shadow: 0 6px 16px var(--shadow);
 }
 
-.toggle-btn.is-active {
-  background: var(--accent);
-  color: #fff;
-  border-color: var(--accent);
-}
-
 .status {
   font-weight: 600;
   color: var(--ink);
@@ -308,33 +302,6 @@ body::before {
   letter-spacing: 0.08em;
 }
 
-.word-ruby {
-  font-size: inherit;
-  line-height: 1;
-  letter-spacing: inherit;
-  ruby-align: center;
-  ruby-position: over;
-}
-
-.word-ruby rt {
-  font-family: "IBM Plex Sans", system-ui, sans-serif;
-  font-size: 0.4em;
-  line-height: 1;
-  letter-spacing: 0.04em;
-  color: var(--muted);
-  opacity: 0;
-  transition: opacity 0.2s ease;
-  transform: translateY(0.55em);
-}
-
-.word-ruby rt:empty::before {
-  content: " ";
-}
-
-.word-grid.show-pinyin rt {
-  opacity: 1;
-}
-
 .word-text .erhua {
   font-size: 0.72em;
   letter-spacing: 0;
@@ -399,6 +366,26 @@ body::before {
   display: inline-flex;
   flex-wrap: wrap;
   gap: 6px;
+}
+
+.selection-menu-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 4px 2px;
+}
+
+.selection-menu-meta-word {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ink);
+  letter-spacing: 0.04em;
+}
+
+.selection-menu-meta-details {
+  font-size: 12px;
+  color: var(--muted);
+  letter-spacing: 0.08em;
 }
 
 .selection-menu-dictionary {

@@ -10,7 +10,6 @@ const elements = {
     status: document.getElementById("status"),
     count: document.getElementById("count"),
     searchInput: document.getElementById("search-input"),
-    pinyinToggle: document.getElementById("pinyin-toggle"),
     view: document.getElementById("word-view"),
     header: document.querySelector(".top"),
     footer: document.querySelector(".footer"),
@@ -22,19 +21,6 @@ const elements = {
 
 const RANK_OPTIONS = [500, 1000, 3000, 5000, 10000, 20000, 30000, 40000, 50000];
 const STATS_PREFIX = "# mcc-stats:";
-const ERHUA_EXCEPTIONS = new Set([
-    "儿",
-    "女儿",
-    "男儿",
-    "新生儿",
-    "婴儿",
-    "少儿",
-    "孤儿",
-    "幼儿",
-    "小儿",
-    "健儿",
-    "胎儿",
-]);
 const FOOTER_SOURCES = new Map([
     ["佛源", "Source: 孙维张（主编）. 《佛源语词词典》. 北京：语文出版社, 2007. ISBN 978-7-80184-151-3."],
 ]);
@@ -49,7 +35,6 @@ const filterState = { value: "all" };
 const rankState = { value: "1" };
 const originState = { value: "all" };
 const searchState = { query: "", timer: null, matcher: null };
-const pinyinState = { visible: false };
 const layoutState = { rows: 1 };
 const renderState = { entries: [], rendered: 0, chunkSize: 400 };
 const footerState = { defaultText: "" };
@@ -61,6 +46,9 @@ const selectionMenuState = {
     dictionaryPanel: null,
     dictionaryStatus: null,
     dictionaryResults: null,
+    selectionMeta: null,
+    selectionMetaWord: null,
+    selectionMetaDetails: null,
     word: "",
     pinyin: "",
     timer: null,
@@ -330,14 +318,13 @@ function normalizeDictionaryEntries(rawEntries) {
 }
 
 function formatDictionaryMeta(entry) {
-    const parts = [];
-    if (entry.rank) {
-        parts.push(`#${entry.rank}`);
+    if (!entry || !entry.meta) {
+        return "";
     }
-    if (entry.pinyin) {
-        parts.push(entry.pinyin);
+    if (Array.isArray(entry.meta)) {
+        return entry.meta.map((value) => String(value).trim()).filter(Boolean).join(" · ");
     }
-    return parts.join(" · ");
+    return String(entry.meta).trim();
 }
 
 function getClosestWordElement(node) {
@@ -500,12 +487,19 @@ async function updateDictionaryPanel(word) {
         }
         const rawEntries = data.entries[lookupWord];
         const entries = normalizeDictionaryEntries(rawEntries)
-            .map((entry) => ({
-                rank: entry && entry.rank ? entry.rank : "",
-                pinyin: entry && entry.pinyin ? String(entry.pinyin).trim() : "",
-                text: entry && entry.text ? String(entry.text).trim() : "",
-            }))
-            .filter((entry) => entry.text);
+            .map((entry) => {
+                if (typeof entry === "string") {
+                    return { text: entry.trim() };
+                }
+                if (entry && typeof entry.text === "string") {
+                    return {
+                        text: entry.text.trim(),
+                        meta: entry.meta,
+                    };
+                }
+                return null;
+            })
+            .filter((entry) => entry && entry.text);
         if (!entries.length) {
             return;
         }
@@ -538,6 +532,9 @@ function hideSelectionMenu() {
     selectionMenuState.word = "";
     selectionMenuState.pinyin = "";
     selectionMenuState.anchorRect = null;
+    if (selectionMenuState.selectionMeta) {
+        selectionMenuState.selectionMeta.hidden = true;
+    }
     resetDictionaryPanel();
 }
 
@@ -551,6 +548,25 @@ function updateSelectionMenu() {
     selectionMenuState.word = context.word;
     selectionMenuState.pinyin = context.pinyin;
     selectionMenuState.anchorRect = context.rect;
+    if (selectionMenuState.selectionMeta) {
+        const entry = dataState.wordLookup ? dataState.wordLookup.get(context.word) : null;
+        const rankText = entry && entry.rank ? `#${entry.rank}` : "";
+        const details = [];
+        if (context.pinyin) {
+            details.push(context.pinyin);
+        }
+        if (rankText) {
+            details.push(rankText);
+        }
+        if (selectionMenuState.selectionMetaWord) {
+            selectionMenuState.selectionMetaWord.textContent = context.word;
+        }
+        if (selectionMenuState.selectionMetaDetails) {
+            selectionMenuState.selectionMetaDetails.textContent = details.join(" · ");
+            selectionMenuState.selectionMetaDetails.hidden = details.length === 0;
+        }
+        selectionMenuState.selectionMeta.hidden = false;
+    }
     if (selectionMenuState.copyPinyinButton) {
         selectionMenuState.copyPinyinButton.hidden = !context.pinyin;
     }
@@ -585,6 +601,15 @@ function initSelectionMenu() {
     actions.appendChild(copyWordButton);
     actions.appendChild(copyPinyinButton);
     actions.appendChild(searchButton);
+    const selectionMeta = document.createElement("div");
+    selectionMeta.className = "selection-menu-meta";
+    selectionMeta.hidden = true;
+    const selectionMetaWord = document.createElement("div");
+    selectionMetaWord.className = "selection-menu-meta-word";
+    const selectionMetaDetails = document.createElement("div");
+    selectionMetaDetails.className = "selection-menu-meta-details";
+    selectionMeta.appendChild(selectionMetaWord);
+    selectionMeta.appendChild(selectionMetaDetails);
     const dictionaryPanel = document.createElement("div");
     dictionaryPanel.className = "selection-menu-dictionary";
     dictionaryPanel.hidden = true;
@@ -597,6 +622,7 @@ function initSelectionMenu() {
     dictionaryPanel.appendChild(dictionaryStatus);
     dictionaryPanel.appendChild(dictionaryResults);
     menu.appendChild(actions);
+    menu.appendChild(selectionMeta);
     menu.appendChild(dictionaryPanel);
     document.body.appendChild(menu);
     selectionMenuState.menu = menu;
@@ -606,6 +632,9 @@ function initSelectionMenu() {
     selectionMenuState.dictionaryPanel = dictionaryPanel;
     selectionMenuState.dictionaryStatus = dictionaryStatus;
     selectionMenuState.dictionaryResults = dictionaryResults;
+    selectionMenuState.selectionMeta = selectionMeta;
+    selectionMenuState.selectionMetaWord = selectionMetaWord;
+    selectionMenuState.selectionMetaDetails = selectionMetaDetails;
 
     copyWordButton.addEventListener("click", async () => {
         await copyToClipboard(selectionMenuState.word);
@@ -794,21 +823,23 @@ function scheduleFilterUpdate() {
 }
 
 function parsePinyinTokens(value) {
-    const raw = String(value || "").trim();
-    if (!raw) {
-        return [];
-    }
-    return raw.split(/\s+/);
+    return String(value || "")
+        .trim()
+        .split(/\s+/)
+        .filter(Boolean);
 }
 
 function normalizeErhuaToken(token) {
-    const raw = normalizePattern(token).trim().toLowerCase().replace(/v/g, "ü");
+    const raw = String(token || "")
+        .trim()
+        .toLowerCase()
+        .replace(/v/g, "ü")
+        .replace(/['’]/g, "");
     if (!raw) {
         return "";
     }
-    const trimmed = raw.replace(/[*?]+$/g, "");
     let result = "";
-    for (const char of trimmed) {
+    for (const char of raw) {
         if (char >= "1" && char <= "5") {
             continue;
         }
@@ -829,21 +860,21 @@ function isErhuaToken(token) {
     return normalized.endsWith("r");
 }
 
-function buildPinyinDisplay(word, pinyinRaw) {
+function buildErhuaFlags(word, pinyinRaw) {
     const tokens = parsePinyinTokens(pinyinRaw);
+    if (!tokens.length) {
+        return Array.from(word).map(() => false);
+    }
     const chars = Array.from(word);
-    const alignedTokens = [];
-    const erhuaFlags = new Array(chars.length).fill(false);
+    const flags = new Array(chars.length).fill(false);
     let tokenIndex = 0;
     let pendingErhua = false;
 
     for (let i = 0; i < chars.length; i += 1) {
         const char = chars[i];
-
         if (pendingErhua) {
             if (char === "儿") {
-                alignedTokens.push("");
-                erhuaFlags[i] = true;
+                flags[i] = true;
                 pendingErhua = false;
                 continue;
             }
@@ -852,60 +883,43 @@ function buildPinyinDisplay(word, pinyinRaw) {
 
         const token = tokens[tokenIndex] || "";
         if (!token) {
-            alignedTokens.push("");
             continue;
         }
 
         if (char === "儿") {
-            alignedTokens.push(token);
-            if (isErhuaToken(token) && normalizeErhuaToken(token) === "r") {
-                erhuaFlags[i] = true;
+            if (normalizeErhuaToken(token) === "r") {
+                flags[i] = true;
             }
             tokenIndex += 1;
             continue;
         }
 
         if (isErhuaToken(token) && chars[i + 1] === "儿") {
-            alignedTokens.push(token);
-            tokenIndex += 1;
             pendingErhua = true;
+            tokenIndex += 1;
             continue;
         }
 
-        alignedTokens.push(token);
         tokenIndex += 1;
     }
 
-    if (!tokens.length && chars.length && word.endsWith("儿") && !ERHUA_EXCEPTIONS.has(word)) {
-        erhuaFlags[chars.length - 1] = true;
-    }
-
-    return { tokens: alignedTokens, erhuaFlags };
+    return flags;
 }
 
-function appendWordRuby(target, entry) {
+function appendWordTextWithErhua(target, entry) {
     target.textContent = "";
-    const ruby = document.createElement("ruby");
-    ruby.className = "word-ruby";
     const chars = Array.from(entry.word);
-    const tokens = entry.pinyinTokens || [];
-    const erhuaFlags = entry.erhuaFlags || [];
+    const flags = entry.erhuaFlags || [];
     chars.forEach((char, index) => {
-        const isErhuaChar = !!erhuaFlags[index];
-        if (isErhuaChar) {
+        if (flags[index]) {
             const span = document.createElement("span");
             span.className = "erhua";
             span.textContent = char;
-            ruby.appendChild(span);
+            target.appendChild(span);
         } else {
-            ruby.appendChild(document.createTextNode(char));
+            target.appendChild(document.createTextNode(char));
         }
-        const rt = document.createElement("rt");
-        const token = tokens[index];
-        rt.textContent = token ? token : "\u00a0";
-        ruby.appendChild(rt);
     });
-    target.appendChild(ruby);
 }
 
 function formatPercent(numerator, denominator) {
@@ -1272,27 +1286,6 @@ function initSearch() {
     });
 }
 
-function updatePinyinToggle() {
-    if (!elements.pinyinToggle || !elements.grid) {
-        return;
-    }
-    const isActive = pinyinState.visible;
-    elements.pinyinToggle.classList.toggle("is-active", isActive);
-    elements.pinyinToggle.setAttribute("aria-pressed", isActive ? "true" : "false");
-    elements.grid.classList.toggle("show-pinyin", isActive);
-}
-
-function initPinyinToggle() {
-    if (!elements.pinyinToggle) {
-        return;
-    }
-    elements.pinyinToggle.addEventListener("click", () => {
-        pinyinState.visible = !pinyinState.visible;
-        updatePinyinToggle();
-    });
-    updatePinyinToggle();
-}
-
 function parseCsv(text) {
     const rows = [];
     let row = [];
@@ -1443,7 +1436,7 @@ function renderNextChunk() {
         indexSpan.textContent = entry.rank;
         const textSpan = document.createElement("span");
         textSpan.className = "word-text";
-        appendWordRuby(textSpan, entry);
+        appendWordTextWithErhua(textSpan, entry);
         div.appendChild(indexSpan);
         div.appendChild(textSpan);
         fragment.appendChild(div);
@@ -1622,7 +1615,7 @@ async function loadWords() {
         const pinyinRaw = pinyinIndex !== null && pinyinIndex < rows[i].length ? rows[i][pinyinIndex] : "";
         const originRaw = originIndex !== null && originIndex < rows[i].length ? rows[i][originIndex] : "";
         const originValue = normalizeOrigin(originRaw);
-        const { tokens: pinyinTokens, erhuaFlags } = buildPinyinDisplay(word, pinyinRaw);
+        const erhuaFlags = buildErhuaFlags(word, pinyinRaw);
         entries.push({
             rank: rankText,
             rankValue: safeRankValue,
@@ -1630,7 +1623,6 @@ async function loadWords() {
             proofread,
             length,
             pinyin: pinyinRaw,
-            pinyinTokens,
             erhuaFlags,
             origin: originRaw,
             originValue,
@@ -1643,7 +1635,6 @@ async function loadWords() {
 async function init() {
     applyTitle();
     initFilters();
-    initPinyinToggle();
     initSearch();
     initSelectionMenu();
     updateLayout();
