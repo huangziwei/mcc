@@ -241,10 +241,6 @@ body::before {
   color: #b42318;
 }
 
-.count {
-  white-space: nowrap;
-}
-
 .word-view {
   height: calc(var(--app-height) - var(--header-height) - var(--footer-height));
   overflow-x: auto;

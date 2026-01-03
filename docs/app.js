@@ -1441,6 +1441,9 @@ function createRangeChecker(ranges) {
 }
 
 function updateMeta() {
+    if (!elements.count) {
+        return;
+    }
     const { proofread, total } = dataState.matchCounts;
     elements.count.textContent = `Proofread: ${formatPercent(proofread, total)} (${formatNumber(
         proofread
@@ -1699,7 +1702,9 @@ async function init() {
         updateLayout();
     } catch (error) {
         setStatus("Failed to load word list.", true);
-        elements.count.textContent = "";
+        if (elements.count) {
+            elements.count.textContent = "";
+        }
     }
 }
 
