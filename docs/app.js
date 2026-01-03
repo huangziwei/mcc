@@ -23,6 +23,7 @@ const RANK_OPTIONS = [500, 1000, 3000, 5000, 10000, 20000, 30000, 40000, 50000];
 const STATS_PREFIX = "# mcc-stats:";
 const FOOTER_SOURCES = new Map([
     ["佛源", "Source: 孙维张（主编）. 《佛源语词词典》. 北京：语文出版社, 2007. ISBN 978-7-80184-151-3."],
+    ["外来", "Source: 岑麒祥（编）. 《汉语外来语词典》. 北京：商务印书馆, 1990. ISBN 978-7-100-00683-5."],
 ]);
 const dataState = {
     stats: null,
@@ -963,8 +964,8 @@ function formatOriginLabel(value) {
     if (!normalized || normalized === "all") {
         return "";
     }
-    if (normalized === "佛源") {
-        return "佛源";
+    if (normalized === "佛源" || normalized === "外来") {
+        return value;
     }
     return `Origin: ${value}`;
 }
