@@ -1,5 +1,7 @@
 const CONFIG = {
-    csvUrl: "https://raw.githubusercontent.com/huangziwei/mcc/refs/heads/main/post/merged/modern-chinese-common-words.csv",
+    csvUrl: "../post/merged/modern-chinese-common-words.csv",
+    csvFallbackUrl:
+        "https://raw.githubusercontent.com/huangziwei/mcc/refs/heads/main/post/merged/modern-chinese-common-words.csv",
     dictionaryManifestUrl: "dictionaries/manifest.json",
     title: "现代汉语常用词表（2021)",
     proofreadOnly: true,
@@ -1609,13 +1611,32 @@ function applyTitle() {
     }
 }
 
+async function fetchCsvText() {
+    const urls = [];
+    if (CONFIG.csvUrl) {
+        urls.push(CONFIG.csvUrl);
+    }
+    if (CONFIG.csvFallbackUrl && CONFIG.csvFallbackUrl !== CONFIG.csvUrl) {
+        urls.push(CONFIG.csvFallbackUrl);
+    }
+    let lastError = null;
+    for (const url of urls) {
+        try {
+            const response = await fetch(url, { cache: "no-store" });
+            if (!response.ok) {
+                throw new Error(`Fetch failed: ${response.status}`);
+            }
+            return await response.text();
+        } catch (error) {
+            lastError = error;
+        }
+    }
+    throw lastError || new Error("Fetch failed.");
+}
+
 async function loadWords() {
     setStatus("Loading merged CSV...");
-    const response = await fetch(CONFIG.csvUrl, { cache: "no-store" });
-    if (!response.ok) {
-        throw new Error(`Fetch failed: ${response.status}`);
-    }
-    const text = await response.text();
+    const text = await fetchCsvText();
     const { stats, csvText } = stripStatsHeader(text);
     const rows = parseCsv(csvText);
     if (!rows.length) {
