@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import base64
+import csv
 import json
 import os
 import re
@@ -25,14 +26,17 @@ from .ocr import list_column_images, parse_ocr_text, write_rank_word_csv
 
 _CJK_RE = re.compile(r"[\u3400-\u9fff]+")
 _LATIN_RE = re.compile(r"[A-Za-z]")
-_RANK_LINE_RE = re.compile(r"^\s*(\d+)\s*(?:[,\t|:.\-]\s*)?(.*)$")
-
-DEFAULT_PROMPT = (
-    "You are an OCR engine. Extract each row's rank number and Chinese word "
-    "from the image.\n"
-    "Output only the data, one row per line, as: <rank>\\t<word>\n"
-    "Use Arabic digits for ranks. Do not add headers, code fences, or commentary."
+_RANK_LINE_RE = re.compile(
+    r"^\s*(?:[-*•]\s*)?(?:\(?(\d+)\)?)\s*(?:[,\t|:.\-]\s*)?(.*)$"
 )
+_TAG_PAIR_RE = re.compile(
+    r"<rank>\s*(\d+)\s*</rank>\s*<word>\s*([^<]+)\s*</word>",
+    re.IGNORECASE,
+)
+_TAG_WORD_RE = re.compile(r"<word>\s*([^<]+)\s*</word>", re.IGNORECASE)
+_UNICODE_ESCAPE_RE = re.compile(r"\\u([0-9a-fA-F]{4})")
+
+DEFAULT_PROMPT = "Extract the text in the image."
 
 
 def resolve_ollama_host(host: str | None) -> str:
@@ -89,12 +93,67 @@ def ensure_model_available(host: str, model: str, timeout: float) -> None:
     )
 
 
+def decode_unicode_escapes(text: str) -> str:
+    def replace(match: re.Match[str]) -> str:
+        return chr(int(match.group(1), 16))
+
+    return _UNICODE_ESCAPE_RE.sub(replace, text)
+
+
+def normalize_ollama_text(text: str) -> str:
+    if "\\n" in text or "\\t" in text or "\\r" in text:
+        text = text.replace("\\r", "\r").replace("\\n", "\n").replace("\\t", "\t")
+    if "\\u" in text:
+        text = decode_unicode_escapes(text)
+    return text
+
+
+def resolve_prompt(prompt: str | None, prompt_path: Path | None) -> str:
+    if prompt and prompt_path:
+        raise SystemExit("Use only one of --prompt or --prompt-file.")
+    if prompt_path is not None:
+        text = prompt_path.read_text(encoding="utf-8")
+        return normalize_ollama_text(text)
+    if prompt is not None:
+        return normalize_ollama_text(prompt)
+    return DEFAULT_PROMPT
+
+
+def render_prompt(prompt_text: str, image_path: Path) -> str:
+    return (
+        prompt_text.replace("{image_path}", str(image_path))
+        .replace("{image_name}", image_path.name)
+    )
+
+
 def parse_ollama_output(text: str) -> tuple[list[tuple[str, str]], bool]:
+    text = normalize_ollama_text(text)
+
+    tag_pairs = _TAG_PAIR_RE.findall(text)
+    if tag_pairs:
+        rows: list[tuple[str, str]] = []
+        for rank, word_text in tag_pairs:
+            word = "".join(_CJK_RE.findall(word_text))
+            if not word:
+                continue
+            rows.append((str(int(rank)), word))
+        if rows:
+            return rows, False
+
+    tag_words = _TAG_WORD_RE.findall(text)
+    if tag_words:
+        words = ["".join(_CJK_RE.findall(word)) for word in tag_words]
+        words = [word for word in words if word]
+        if words:
+            return [(str(idx + 1), word) for idx, word in enumerate(words)], True
+
     rows: list[tuple[str, str]] = []
     saw_structured = False
     for raw_line in text.splitlines():
         line = raw_line.strip()
         if not line:
+            continue
+        if line.startswith("```"):
             continue
         if line.startswith("|") and line.endswith("|"):
             line = line.strip("|").strip()
@@ -108,7 +167,9 @@ def parse_ollama_output(text: str) -> tuple[list[tuple[str, str]], bool]:
         rank = match.group(1)
         rest = match.group(2).strip()
         word = "".join(_CJK_RE.findall(rest))
-        if not word and rest and _LATIN_RE.search(rest):
+        if not word:
+            if rest and _LATIN_RE.search(rest):
+                continue
             continue
         try:
             rank = str(int(rank))
@@ -129,6 +190,37 @@ def parse_ollama_output(text: str) -> tuple[list[tuple[str, str]], bool]:
     return [(str(idx + 1), word) for idx, word in enumerate(words)], True
 
 
+def read_csv_rows(path: Path) -> list[list[str]]:
+    with path.open("r", encoding="utf-8", newline="") as handle:
+        return list(csv.reader(handle))
+
+
+def normalize_pair(row: list[str]) -> tuple[str, str] | None:
+    if not row:
+        return None
+    rank = row[0].strip() if row else ""
+    word = row[1].strip() if len(row) > 1 else ""
+    if rank.isdigit():
+        rank = str(int(rank))
+    if not rank and not word:
+        return None
+    return rank, word
+
+
+def compare_csv_rows(actual_path: Path, expected_path: Path) -> tuple[int, int, int]:
+    expected_rows = read_csv_rows(expected_path)
+    actual_rows = read_csv_rows(actual_path)
+    matched_rows = 0
+    for expected, actual in zip(expected_rows, actual_rows):
+        expected_pair = normalize_pair(expected)
+        actual_pair = normalize_pair(actual)
+        if expected_pair is None or actual_pair is None:
+            continue
+        if expected_pair == actual_pair:
+            matched_rows += 1
+    return matched_rows, len(expected_rows), len(actual_rows)
+
+
 def run_ollama_generate(
     host: str,
     model: str,
@@ -136,7 +228,7 @@ def run_ollama_generate(
     image_path: Path,
     timeout: float,
     options: dict[str, Any] | None = None,
-) -> str:
+) -> tuple[str, dict[str, Any]]:
     image_b64 = base64.b64encode(image_path.read_bytes()).decode("ascii")
     payload: dict[str, Any] = {
         "model": model,
@@ -175,8 +267,62 @@ def run_ollama_generate(
 
     response_text = result.get("response")
     if response_text is None:
-        return ""
-    return response_text
+        return "", result
+    return response_text, result
+
+
+def run_ollama_chat(
+    host: str,
+    model: str,
+    prompt: str,
+    image_path: Path,
+    timeout: float,
+    options: dict[str, Any] | None = None,
+) -> tuple[str, dict[str, Any]]:
+    image_b64 = base64.b64encode(image_path.read_bytes()).decode("ascii")
+    payload: dict[str, Any] = {
+        "model": model,
+        "messages": [{"role": "user", "content": prompt, "images": [image_b64]}],
+        "stream": False,
+    }
+    if options:
+        payload["options"] = options
+
+    data = json.dumps(payload).encode("utf-8")
+    request = urllib.request.Request(
+        f"{host}/api/chat",
+        data=data,
+        headers={"Content-Type": "application/json"},
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=timeout) as response:
+            result = json.load(response)
+    except urllib.error.HTTPError as exc:
+        detail = exc.read().decode("utf-8", errors="replace").strip()
+        message = f"Ollama chat request failed ({exc.code})."
+        if detail:
+            message = f"{message} {detail}"
+        raise SystemExit(message) from exc
+    except urllib.error.URLError as exc:
+        raise SystemExit(
+            f"Ollama server not reachable at {host}. "
+            "Start it with `ollama serve` or open the Ollama app."
+        ) from exc
+    except json.JSONDecodeError as exc:
+        raise SystemExit("Invalid response from Ollama during OCR.") from exc
+
+    if "error" in result:
+        raise SystemExit(f"Ollama error: {result['error']}")
+
+    message = result.get("message", {})
+    if isinstance(message, dict):
+        content = message.get("content")
+        if content is not None:
+            return content, result
+    response_text = result.get("response")
+    if response_text is None:
+        return "", result
+    return response_text, result
 
 
 def ollama_ocr_columns(
@@ -189,6 +335,12 @@ def ollama_ocr_columns(
     timeout: float,
     temperature: float,
     num_predict: int,
+    prompt: str | None,
+    prompt_file: Path | None,
+    limit: int | None,
+    compare_dir: Path | None,
+    dump_raw: bool,
+    dump_json: bool,
     skip_existing: bool,
     no_progress: bool,
 ) -> None:
@@ -209,11 +361,20 @@ def ollama_ocr_columns(
     ]
     if not selected:
         raise SystemExit(f"No column images in range {start_page}-{end_page}.")
+    if limit is not None:
+        if limit < 1:
+            raise SystemExit("--limit must be >= 1.")
+        selected = selected[:limit]
 
     out_dir.mkdir(parents=True, exist_ok=True)
+    if compare_dir is not None and not compare_dir.exists():
+        raise SystemExit(f"Ground truth directory not found: {compare_dir}")
     host = resolve_ollama_host(host)
+    prompt_text = resolve_prompt(prompt, prompt_file)
     options = {"temperature": temperature, "num_predict": num_predict}
     ollama_ready = False
+    raw_dir = out_dir / "raw" if dump_raw else None
+    json_dir = out_dir / "raw-json" if dump_json else None
 
     def ensure_ollama() -> None:
         nonlocal ollama_ready
@@ -221,6 +382,23 @@ def ollama_ocr_columns(
             return
         ensure_model_available(host=host, model=model, timeout=timeout)
         ollama_ready = True
+
+    def write_raw(page_num: int, col_num: int, label: str, text: str) -> None:
+        if raw_dir is None:
+            return
+        raw_dir.mkdir(parents=True, exist_ok=True)
+        raw_path = raw_dir / f"page-{page_num:04d}-col-{col_num}-{label}.txt"
+        raw_path.write_text(text, encoding="utf-8")
+
+    def write_json(page_num: int, col_num: int, label: str, payload: dict[str, Any]) -> None:
+        if json_dir is None:
+            return
+        json_dir.mkdir(parents=True, exist_ok=True)
+        json_path = json_dir / f"page-{page_num:04d}-col-{col_num}-{label}.json"
+        json_path.write_text(
+            json.dumps(payload, ensure_ascii=True, indent=2),
+            encoding="utf-8",
+        )
 
     def process_one(page_num: int, col_num: int, path: Path) -> None:
         csv_path = out_dir / f"page-{page_num:04d}-col-{col_num}.csv"
@@ -230,15 +408,46 @@ def ollama_ocr_columns(
             return
 
         ensure_ollama()
-        response_text = run_ollama_generate(
+        prompt_for_image = render_prompt(prompt_text, path)
+        response_text, response_payload = run_ollama_generate(
             host=host,
             model=model,
-            prompt=DEFAULT_PROMPT,
+            prompt=prompt_for_image,
             image_path=path,
             timeout=timeout,
             options=options,
         )
+        if dump_raw:
+            write_raw(page_num, col_num, "generate", response_text)
+        if dump_json:
+            write_json(page_num, col_num, "generate", response_payload)
+        if not response_text.strip():
+            console.log(
+                f"Warning: empty response from /api/generate for page {page_num} col {col_num}."
+            )
         rows, used_fallback = parse_ollama_output(response_text)
+        if not rows:
+            console.log(
+                f"Warning: no parsed rows from /api/generate for page {page_num} col {col_num}. "
+                "Retrying via /api/chat."
+            )
+            response_text, response_payload = run_ollama_chat(
+                host=host,
+                model=model,
+                prompt=prompt_for_image,
+                image_path=path,
+                timeout=timeout,
+                options=options,
+            )
+            if dump_raw:
+                write_raw(page_num, col_num, "chat", response_text)
+            if dump_json:
+                write_json(page_num, col_num, "chat", response_payload)
+            if not response_text.strip():
+                console.log(
+                    f"Warning: empty response from /api/chat for page {page_num} col {col_num}."
+                )
+            rows, used_fallback = parse_ollama_output(response_text)
         if used_fallback:
             console.log(
                 f"Warning: fallback parsing for page {page_num} col {col_num} "
@@ -254,6 +463,22 @@ def ollama_ocr_columns(
                     f"Warning: {missing_words} missing words for page {page_num} col {col_num}"
                 )
         write_rank_word_csv(rows, csv_path)
+        if compare_dir is not None:
+            expected_path = compare_dir / csv_path.name
+            if expected_path.exists():
+                matched, expected_total, actual_total = compare_csv_rows(
+                    actual_path=csv_path,
+                    expected_path=expected_path,
+                )
+                accuracy = matched / expected_total if expected_total else 0.0
+                console.log(
+                    f"Compare {csv_path.name}: {accuracy:.2%} "
+                    f"({matched}/{expected_total}), actual rows {actual_total}"
+                )
+            else:
+                console.log(
+                    f"Warning: ground truth missing for {csv_path.name} in {compare_dir}"
+                )
         console.log(
             f"OCR page {page_num} col {col_num} -> {csv_path.name} ({len(rows)} rows)"
         )

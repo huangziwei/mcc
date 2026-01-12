@@ -207,6 +207,42 @@ def build_parser() -> argparse.ArgumentParser:
         help="Maximum tokens to generate",
     )
     ollama_ocr_parser.add_argument(
+        "--prompt",
+        default=None,
+        help=(
+            "Custom prompt text (supports \\n and \\t escapes; "
+            "use {image_path} or {image_name} placeholders)"
+        ),
+    )
+    ollama_ocr_parser.add_argument(
+        "--prompt-file",
+        type=Path,
+        default=None,
+        help="Read prompt text from a file",
+    )
+    ollama_ocr_parser.add_argument(
+        "--limit",
+        type=int,
+        default=None,
+        help="Limit the number of columns processed (for quick tests)",
+    )
+    ollama_ocr_parser.add_argument(
+        "--compare-dir",
+        type=Path,
+        default=None,
+        help="Compare outputs against ground truth CSVs in this directory",
+    )
+    ollama_ocr_parser.add_argument(
+        "--dump-raw",
+        action="store_true",
+        help="Save raw Ollama responses under out/raw for debugging",
+    )
+    ollama_ocr_parser.add_argument(
+        "--dump-json",
+        action="store_true",
+        help="Save raw Ollama JSON responses under out/raw-json for debugging",
+    )
+    ollama_ocr_parser.add_argument(
         "--skip-existing", action="store_true", help="Skip columns already OCRed"
     )
     ollama_ocr_parser.add_argument(
@@ -460,8 +496,14 @@ def cmd_ollama_ocr(args: argparse.Namespace) -> None:
         timeout=args.timeout,
         temperature=args.temperature,
         num_predict=args.num_predict,
+        prompt=args.prompt,
+        prompt_file=args.prompt_file,
+        limit=args.limit,
+        compare_dir=args.compare_dir,
         skip_existing=args.skip_existing,
         no_progress=args.no_progress,
+        dump_raw=args.dump_raw,
+        dump_json=args.dump_json,
     )
 
 
