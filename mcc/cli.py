@@ -19,6 +19,7 @@ from mcc.dx import (
 )
 from mcc.merge import merge_csv
 from mcc.preprocess.ocr import ocr_columns
+from mcc.preprocess.ollama_ocr import ollama_ocr_columns
 from mcc.preprocess.render import render_pages
 from mcc.preprocess.segment import segment_pages
 from mcc.proofread.server import run_proofread_server
@@ -153,6 +154,65 @@ def build_parser() -> argparse.ArgumentParser:
         "--no-progress", action="store_true", help="Disable the progress bar"
     )
     ocr_parser.set_defaults(func=cmd_ocr)
+
+    ollama_ocr_parser = subparsers.add_parser(
+        "ollama-ocr", help="Run Ollama OCR over segmented column images"
+    )
+    ollama_ocr_parser.add_argument(
+        "--in",
+        dest="in_dir",
+        default=repo_root / "pre" / "columns",
+        type=Path,
+        help="Input column image directory",
+    )
+    ollama_ocr_parser.add_argument(
+        "--out",
+        dest="out_dir",
+        default=repo_root / "post" / "csv",
+        type=Path,
+        help="Output directory",
+    )
+    ollama_ocr_parser.add_argument(
+        "--start-page", type=int, default=1, help="1-based start page"
+    )
+    ollama_ocr_parser.add_argument(
+        "--end-page", type=int, default=None, help="1-based end page (inclusive)"
+    )
+    ollama_ocr_parser.add_argument(
+        "--model",
+        default="deepseek-ocr",
+        help="Ollama model name (default: deepseek-ocr)",
+    )
+    ollama_ocr_parser.add_argument(
+        "--host",
+        default=None,
+        help="Ollama API host (default: $OLLAMA_HOST or http://localhost:11434)",
+    )
+    ollama_ocr_parser.add_argument(
+        "--timeout",
+        type=float,
+        default=120.0,
+        help="Per-request timeout in seconds",
+    )
+    ollama_ocr_parser.add_argument(
+        "--temperature",
+        type=float,
+        default=0.0,
+        help="Ollama temperature",
+    )
+    ollama_ocr_parser.add_argument(
+        "--num-predict",
+        type=int,
+        default=2048,
+        help="Maximum tokens to generate",
+    )
+    ollama_ocr_parser.add_argument(
+        "--skip-existing", action="store_true", help="Skip columns already OCRed"
+    )
+    ollama_ocr_parser.add_argument(
+        "--no-progress", action="store_true", help="Disable the progress bar"
+    )
+    ollama_ocr_parser.set_defaults(func=cmd_ollama_ocr)
 
     proofread_parser = subparsers.add_parser(
         "proofread", help="Launch the proofreading web app"
@@ -384,6 +444,22 @@ def cmd_ocr(args: argparse.Namespace) -> None:
         psm=args.psm,
         oem=args.oem,
         tessdata_dir=args.tessdata_dir,
+        skip_existing=args.skip_existing,
+        no_progress=args.no_progress,
+    )
+
+
+def cmd_ollama_ocr(args: argparse.Namespace) -> None:
+    ollama_ocr_columns(
+        in_dir=args.in_dir,
+        out_dir=args.out_dir,
+        start_page=args.start_page,
+        end_page=args.end_page,
+        model=args.model,
+        host=args.host,
+        timeout=args.timeout,
+        temperature=args.temperature,
+        num_predict=args.num_predict,
         skip_existing=args.skip_existing,
         no_progress=args.no_progress,
     )
