@@ -207,18 +207,23 @@ def normalize_pair(row: list[str]) -> tuple[str, str] | None:
     return rank, word
 
 
-def compare_csv_rows(actual_path: Path, expected_path: Path) -> tuple[int, int, int]:
+def compare_csv_rows(
+    actual_path: Path, expected_path: Path
+) -> tuple[int, int, int, list[tuple[int, tuple[str, str], tuple[str, str]]]]:
     expected_rows = read_csv_rows(expected_path)
     actual_rows = read_csv_rows(actual_path)
     matched_rows = 0
-    for expected, actual in zip(expected_rows, actual_rows):
+    mismatches: list[tuple[int, tuple[str, str], tuple[str, str]]] = []
+    for row_idx, (expected, actual) in enumerate(zip(expected_rows, actual_rows), start=1):
         expected_pair = normalize_pair(expected)
         actual_pair = normalize_pair(actual)
         if expected_pair is None or actual_pair is None:
             continue
         if expected_pair == actual_pair:
             matched_rows += 1
-    return matched_rows, len(expected_rows), len(actual_rows)
+        else:
+            mismatches.append((row_idx, expected_pair, actual_pair))
+    return matched_rows, len(expected_rows), len(actual_rows), mismatches
 
 
 def run_ollama_generate(
@@ -466,7 +471,7 @@ def ollama_ocr_columns(
         if compare_dir is not None:
             expected_path = compare_dir / csv_path.name
             if expected_path.exists():
-                matched, expected_total, actual_total = compare_csv_rows(
+                matched, expected_total, actual_total, mismatches = compare_csv_rows(
                     actual_path=csv_path,
                     expected_path=expected_path,
                 )
@@ -475,6 +480,12 @@ def ollama_ocr_columns(
                     f"Compare {csv_path.name}: {accuracy:.2%} "
                     f"({matched}/{expected_total}), actual rows {actual_total}"
                 )
+                if mismatches:
+                    for row_idx, expected_pair, actual_pair in mismatches:
+                        console.log(
+                            f"Diff {csv_path.name} row {row_idx}: "
+                            f"expected {expected_pair} actual {actual_pair}"
+                        )
             else:
                 console.log(
                     f"Warning: ground truth missing for {csv_path.name} in {compare_dir}"

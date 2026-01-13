@@ -1,4 +1,4 @@
-# Modern Chinese Common Words / 现代汉语常用词表 (2e, 2021)
+# Modern Chinese Common Words (2e, 2021)
 
 Preview: http://hzwei.dev/mcc/
 
