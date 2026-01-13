@@ -37,7 +37,7 @@ _TAG_PAIR_RE = re.compile(
 _TAG_WORD_RE = re.compile(r"<word>\s*([^<]+)\s*</word>", re.IGNORECASE)
 _UNICODE_ESCAPE_RE = re.compile(r"\\u([0-9a-fA-F]{4})")
 
-DEFAULT_PROMPT = "Extract the text in the image."
+DEFAULT_PROMPT = "Extract the Chinese text in the image along with their ranks."
 
 
 def resolve_ollama_host(host: str | None) -> str:
@@ -121,9 +121,8 @@ def resolve_prompt(prompt: str | None, prompt_path: Path | None) -> str:
 
 
 def render_prompt(prompt_text: str, image_path: Path) -> str:
-    return (
-        prompt_text.replace("{image_path}", str(image_path))
-        .replace("{image_name}", image_path.name)
+    return prompt_text.replace("{image_path}", str(image_path)).replace(
+        "{image_name}", image_path.name
     )
 
 
@@ -443,7 +442,9 @@ def ollama_ocr_columns(
         raw_path = raw_dir / f"page-{page_num:04d}-col-{col_num}-{label}.txt"
         raw_path.write_text(text, encoding="utf-8")
 
-    def write_json(page_num: int, col_num: int, label: str, payload: dict[str, Any]) -> None:
+    def write_json(
+        page_num: int, col_num: int, label: str, payload: dict[str, Any]
+    ) -> None:
         if json_dir is None:
             return
         json_dir.mkdir(parents=True, exist_ok=True)
@@ -558,9 +559,7 @@ def ollama_ocr_columns(
     with progress:
         task_id = progress.add_task("OCR columns", total=len(selected))
         for page_num, col_num, path in selected:
-            progress.update(
-                task_id, description=f"OCR page {page_num} col {col_num}"
-            )
+            progress.update(task_id, description=f"OCR page {page_num} col {col_num}")
             process_one(page_num, col_num, path)
             progress.advance(task_id)
 
