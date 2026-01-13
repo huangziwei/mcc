@@ -209,21 +209,68 @@ def normalize_pair(row: list[str]) -> tuple[str, str] | None:
 
 def compare_csv_rows(
     actual_path: Path, expected_path: Path
-) -> tuple[int, int, int, list[tuple[int, tuple[str, str], tuple[str, str]]]]:
+) -> tuple[int, int, int, list[str]]:
     expected_rows = read_csv_rows(expected_path)
     actual_rows = read_csv_rows(actual_path)
+    expected_pairs = [
+        pair for pair in (normalize_pair(row) for row in expected_rows) if pair
+    ]
+    actual_pairs = [
+        pair for pair in (normalize_pair(row) for row in actual_rows) if pair
+    ]
+
+    expected_by_rank: dict[str, list[str]] = {}
+    expected_order: list[str] = []
+    seen_expected: set[str] = set()
+    for rank, word in expected_pairs:
+        expected_by_rank.setdefault(rank, []).append(word)
+        if rank not in seen_expected:
+            expected_order.append(rank)
+            seen_expected.add(rank)
+
+    actual_by_rank: dict[str, list[str]] = {}
+    actual_order: list[str] = []
+    seen_actual: set[str] = set()
+    for rank, word in actual_pairs:
+        actual_by_rank.setdefault(rank, []).append(word)
+        if rank not in seen_actual:
+            actual_order.append(rank)
+            seen_actual.add(rank)
+
     matched_rows = 0
-    mismatches: list[tuple[int, tuple[str, str], tuple[str, str]]] = []
-    for row_idx, (expected, actual) in enumerate(zip(expected_rows, actual_rows), start=1):
-        expected_pair = normalize_pair(expected)
-        actual_pair = normalize_pair(actual)
-        if expected_pair is None or actual_pair is None:
+    for rank, expected_words in expected_by_rank.items():
+        actual_words = actual_by_rank.get(rank, [])
+        if not actual_words:
             continue
-        if expected_pair == actual_pair:
-            matched_rows += 1
+        expected_counts = Counter(expected_words)
+        actual_counts = Counter(actual_words)
+        matched_rows += sum((expected_counts & actual_counts).values())
+
+    mismatches: list[str] = []
+    for rank in expected_order:
+        expected_words = expected_by_rank.get(rank, [])
+        actual_words = actual_by_rank.get(rank)
+        if actual_words is None:
+            mismatches.append(f"rank {rank}: missing (expected {expected_words})")
+            continue
+        if Counter(expected_words) == Counter(actual_words):
+            continue
+        if len(expected_words) == 1 and len(actual_words) == 1:
+            mismatches.append(
+                f"rank {rank}: expected {expected_words[0]} actual {actual_words[0]}"
+            )
         else:
-            mismatches.append((row_idx, expected_pair, actual_pair))
-    return matched_rows, len(expected_rows), len(actual_rows), mismatches
+            mismatches.append(
+                f"rank {rank}: expected {expected_words} actual {actual_words}"
+            )
+
+    for rank in actual_order:
+        if rank in expected_by_rank:
+            continue
+        actual_words = actual_by_rank.get(rank, [])
+        mismatches.append(f"rank {rank}: extra (actual {actual_words})")
+
+    return matched_rows, len(expected_pairs), len(actual_pairs), mismatches
 
 
 def run_ollama_generate(
@@ -481,11 +528,8 @@ def ollama_ocr_columns(
                     f"({matched}/{expected_total}), actual rows {actual_total}"
                 )
                 if mismatches:
-                    for row_idx, expected_pair, actual_pair in mismatches:
-                        console.log(
-                            f"Diff {csv_path.name} row {row_idx}: "
-                            f"expected {expected_pair} actual {actual_pair}"
-                        )
+                    for diff in mismatches:
+                        console.log(f"Diff {csv_path.name}: {diff}")
             else:
                 console.log(
                     f"Warning: ground truth missing for {csv_path.name} in {compare_dir}"
