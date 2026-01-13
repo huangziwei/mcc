@@ -37,7 +37,10 @@ _TAG_PAIR_RE = re.compile(
 _TAG_WORD_RE = re.compile(r"<word>\s*([^<]+)\s*</word>", re.IGNORECASE)
 _UNICODE_ESCAPE_RE = re.compile(r"\\u([0-9a-fA-F]{4})")
 
-DEFAULT_PROMPT = "Extract the Chinese text in the image along with their ranks."
+DEFAULT_PROMPT = (
+    "Extract the Chinese text in the image along with their ranks."
+    "In the image, the rank is on the left of the Chinese word."
+)
 
 
 def resolve_ollama_host(host: str | None) -> str:
