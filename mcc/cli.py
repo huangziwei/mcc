@@ -10,6 +10,7 @@ from pathlib import Path
 
 from rich.console import Console
 
+from mcc.diff_ocr import diff_ocr_dirs
 from mcc.dx import (
     check_proofread_index_continuity,
     find_duplicate_words,
@@ -154,6 +155,23 @@ def build_parser() -> argparse.ArgumentParser:
         "--no-progress", action="store_true", help="Disable the progress bar"
     )
     ocr_parser.set_defaults(func=cmd_ocr)
+
+    diff_ocr_parser = subparsers.add_parser(
+        "diff-ocr", help="Compare OCR CSV outputs between two directories"
+    )
+    diff_ocr_parser.add_argument(
+        "--left",
+        default=repo_root / "post" / "csv",
+        type=Path,
+        help="Baseline CSV directory (used as expected)",
+    )
+    diff_ocr_parser.add_argument(
+        "--right",
+        default=repo_root / "post" / "csv-ollama",
+        type=Path,
+        help="Comparison CSV directory",
+    )
+    diff_ocr_parser.set_defaults(func=cmd_diff_ocr)
 
     ollama_ocr_parser = subparsers.add_parser(
         "ollama-ocr", help="Run Ollama OCR over segmented column images"
@@ -483,6 +501,10 @@ def cmd_ocr(args: argparse.Namespace) -> None:
         skip_existing=args.skip_existing,
         no_progress=args.no_progress,
     )
+
+
+def cmd_diff_ocr(args: argparse.Namespace) -> None:
+    diff_ocr_dirs(left_dir=args.left, right_dir=args.right)
 
 
 def cmd_ollama_ocr(args: argparse.Namespace) -> None:
