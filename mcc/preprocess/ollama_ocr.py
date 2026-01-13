@@ -35,12 +35,10 @@ _TAG_PAIR_RE = re.compile(
     re.IGNORECASE,
 )
 _TAG_WORD_RE = re.compile(r"<word>\s*([^<]+)\s*</word>", re.IGNORECASE)
+_LATIN_EXT_RE = re.compile(r"[A-Za-z\u00C0-\u024F\u1E00-\u1EFF]")
 _UNICODE_ESCAPE_RE = re.compile(r"\\u([0-9a-fA-F]{4})")
 
-DEFAULT_PROMPT = (
-    "Extract the Chinese text in the image along with their ranks."
-    "In the image, the rank is on the left of the Chinese word."
-)
+DEFAULT_PROMPT = "Extract the Chinese text in the image along with their ranks."
 
 
 def resolve_ollama_host(host: str | None) -> str:
@@ -152,6 +150,7 @@ def parse_ollama_output(text: str) -> tuple[list[tuple[str, str]], bool]:
 
     rows: list[tuple[str, str]] = []
     saw_structured = False
+    skipped_pinyin = 0
     for raw_line in text.splitlines():
         line = raw_line.strip()
         if not line:
@@ -170,12 +169,14 @@ def parse_ollama_output(text: str) -> tuple[list[tuple[str, str]], bool]:
         rank = match.group(1)
         rest = match.group(2).strip()
         word = "".join(_CJK_RE.findall(rest))
-        if not word:
-            if rest and _LATIN_RE.search(rest):
-                continue
+        has_latin = bool(_LATIN_EXT_RE.search(rest))
+        if not word and has_latin:
+            skipped_pinyin += 1
+            saw_structured = True
             continue
         try:
-            rank = str(int(rank))
+            rank_value = int(rank) - skipped_pinyin
+            rank = str(rank_value)
         except ValueError:
             continue
         rows.append((rank, word))

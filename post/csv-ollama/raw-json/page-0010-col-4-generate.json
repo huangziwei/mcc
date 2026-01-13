@@ -1,6 +1,6 @@
 {
   "model": "deepseek-ocr",
-  "created_at": "2026-01-13T13:26:32.837338Z",
+  "created_at": "2026-01-13T13:54:59.806127Z",
   "response": "| 2149 | \u8eba |\n| 2150 | \u6bd5\u7adf |\n| 2151 | \u6050\u6016 |\n| 2152 | \u79fb\u52a8 |\n| 2153 | \u68c0\u9a8c |\n| 2154 | \u4e49 |\n| 2155 | \u5177\u5907 |\n| 2156 | \u64cd\u4f5c |\n| 2157 | \u4ed6\u4eba |\n| 2158 | \u575a\u5b9a |\n| 2159 | \u9884\u9632 |\n| 2160 | \u6d41\u52a8 |\n| 2161 | \u8d44\u672c\u4e3b\u4e49 |\n| 2162 | \u8eab\u4efd |\n| 2163 | \u4eba\u5927 |\n| 2164 | \u5f7c\u6b64 |\n| 2165 | \u6728 |\n| 2166 | \u4e1d |\n| 2167 | \u5c55\u793a |\n| 2168 | \u5b98\u5175 |\n| 2169 | \u7f3a |\n| 2170 | \u6837 |\n| 2171 | \u8272\u5f69 |\n| 2172 | \u8bfe |\n| 2173 | \u65b0\u7586 |\n| 2174 | \u6f02\u4eae |\n| 2175 | \u516c\u56ed |\n| 2176 | \u8150\u8d25 |\n| 2177 | \u804c\u80fd |\n| 2178 | \u7d2f |\n| 2179 | \u5feb\u4e50 |\n| 2180 | \u52bf |\n| 2181 | \u6982\u5ff5 |\n| 2182 | \u62d6 |\n| 2183 | \u6625\u5929 |\n| 2184 | \u6559\u5b66 |\n| 2185 | \uff08ji\u00e0oxu\u00e8\uff09 |\n| 2186 | \u7814\u5236 |\n| 2187 | \u9003 |\n| 2188 | \u673a\u9047 |\n| 2189 | \u79cd\u5b50 |\n| 2190 | \u6bcd |\n| 2191 | \u8131 |\n| 2192 | \u961f\u957f |\n| 2193 | \u6297 |\n| 2194 | \u7f16\u8f91 |",
   "done": true,
   "done_reason": "stop",
@@ -1828335,10 +1828335,10 @@
     11196,
     369
   ],
-  "total_duration": 72141524836,
-  "load_duration": 93697395,
+  "total_duration": 25801613757,
+  "load_duration": 166900206,
   "prompt_eval_count": 1057,
-  "prompt_eval_duration": 6842325084,
+  "prompt_eval_duration": 1037783868,
   "eval_count": 374,
-  "eval_duration": 32487811376
+  "eval_duration": 22460896645
 }
