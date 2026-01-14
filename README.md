@@ -18,13 +18,32 @@ Current proofreading focus: add pinyin and double check selected word origin.
 
 ### Main Quest
 
-Ultimately the goal of this project is to quantify what percentage of commons words are foreign origins by cross referencing the common word list (first step) with some authoritative dictionaries (second step). 
+Ultimately, the goal of this project is to quantify what percentage of common words are of foreign origin by cross-referencing the common word list (first step) with some authoritative dictionaries (second step).
 
 ### Side Quest
 
-I used `tesseract` for OCR, and it yielded only 71.54% aggrement with the 1st pass proofread list (16248 rows across 1245 files to fix). I've heard `deepseek-ocr` can yield better results, but in general it is slow to run locally (rough 1.5 mins per column on my outdated Intel Macbook Pro) and not sure how much better they can get. It surely won't be 100% and still requires a separate proofreading step, but I am curious about how much better it can get.
+I used `tesseract` for OCR, and it yielded only 71.54% agreement with the first-pass proofread list (that is, about 16k rows across 1245 files to fix during proodreading). I've heard `deepseek-ocr` can yield better results, but in general it is slow to run locally (roughly 1.5 minutes per column on my outdated Intel MacBook Pro). It also surely won't hit 100% accuracy and still requires a separate proofreading step, but I am curious about how much better it can get.
 
-So far I tested some 20 pages and got ~96-98% aggreement. When it works, it works great, and mostly tripped over at fine details due to lossy scans, such as 入/人, 耍/要, 未/末, etc. But when it failed, it failed completely (no meaningful output but jibberish), modifying the prompt might fix it for some pages but this will fail others, in short, it's not very determinstic. There're hopes that one day local LLVMs can replace traditional methods, but we are not there yet. 
+So far I tested about 20 pages and got ~96-98% agreement. When it works, it works great and mostly tripped over fine details due to lossy scans, such as 入/人, 耍/要, 未/末, etc. But when it failed, it failed completely (no meaningful output but gibberish). Modifying the prompt might fix it for some pages, but it fails others; in short, it's not very deterministic. There's hope that one day local LLMs can replace traditional methods, but we are not there yet.
+
+## Installation (macOS via Homebrew)
+
+### Tesseract (for `mcc ocr`)
+
+```bash
+brew install tesseract
+# If chi_sim is missing, install language packs.
+brew install tesseract-lang
+tesseract --list-langs
+```
+
+### Ollama (for `mcc ollama-ocr`)
+
+```bash
+brew install ollama
+ollama serve # keep this running in another terminal
+ollama pull deepseek-ocr
+```
 
 ## Usage
 
