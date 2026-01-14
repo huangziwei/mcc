@@ -401,6 +401,7 @@ def ollama_ocr_columns(
     dump_json: bool,
     skip_existing: bool,
     no_progress: bool,
+    continue_on_error: bool,
 ) -> None:
     console = Console(stderr=True)
     items = list_column_images(in_dir)
@@ -548,7 +549,16 @@ def ollama_ocr_columns(
 
     if no_progress:
         for page_num, col_num, path in selected:
-            process_one(page_num, col_num, path)
+            try:
+                process_one(page_num, col_num, path)
+            except SystemExit as exc:
+                if not continue_on_error:
+                    raise
+                console.log(f"Error page {page_num} col {col_num}: {exc}")
+            except Exception as exc:
+                if not continue_on_error:
+                    raise
+                console.log(f"Error page {page_num} col {col_num}: {exc}")
         return
 
     progress = Progress(
@@ -566,7 +576,16 @@ def ollama_ocr_columns(
         task_id = progress.add_task("OCR columns", total=len(selected))
         for page_num, col_num, path in selected:
             progress.update(task_id, description=f"OCR page {page_num} col {col_num}")
-            process_one(page_num, col_num, path)
+            try:
+                process_one(page_num, col_num, path)
+            except SystemExit as exc:
+                if not continue_on_error:
+                    raise
+                console.log(f"Error page {page_num} col {col_num}: {exc}")
+            except Exception as exc:
+                if not continue_on_error:
+                    raise
+                console.log(f"Error page {page_num} col {col_num}: {exc}")
             progress.advance(task_id)
 
     console.log(f"Wrote OCR CSV for pages {start_page}-{end_page} to {out_dir}")

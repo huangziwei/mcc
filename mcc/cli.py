@@ -264,6 +264,19 @@ def build_parser() -> argparse.ArgumentParser:
         "--skip-existing", action="store_true", help="Skip columns already OCRed"
     )
     ollama_ocr_parser.add_argument(
+        "--continue-on-error",
+        dest="continue_on_error",
+        action="store_true",
+        default=True,
+        help="Continue processing other columns if a column fails (default)",
+    )
+    ollama_ocr_parser.add_argument(
+        "--fail-fast",
+        dest="continue_on_error",
+        action="store_false",
+        help="Stop at the first column error",
+    )
+    ollama_ocr_parser.add_argument(
         "--no-progress", action="store_true", help="Disable the progress bar"
     )
     ollama_ocr_parser.set_defaults(func=cmd_ollama_ocr)
@@ -524,6 +537,7 @@ def cmd_ollama_ocr(args: argparse.Namespace) -> None:
         compare_dir=args.compare_dir,
         skip_existing=args.skip_existing,
         no_progress=args.no_progress,
+        continue_on_error=args.continue_on_error,
         dump_raw=args.dump_raw,
         dump_json=args.dump_json,
     )
